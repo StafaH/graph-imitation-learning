@@ -1,3 +1,0 @@
-[submodule "rlbench"]
-	path = rlbench
-	url = git@github.com:stepjam/RLBench.git
