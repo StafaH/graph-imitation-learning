@@ -1,8 +1,12 @@
-# graph-imitation-learning
+# Final Course Project for CSC2626: Imitation Learning for Robotics
 
-## Installation:
-We recommend using Anaconda to install all relevant packages
-1. Create a new environment (Python 3.8 or below only)
+## Graph Imitation Learning
+
+### Installation Procedure:
+
+We recommend using Anaconda to install all relevant packages:
+
+1. Create a new environment (Python 3.8 or older only)
 
 ``` conda create -n graphs python=3.8.8 ```
 
@@ -21,6 +25,6 @@ pip install torch-geometric
 
 ```
 
-4. Install rest of packages
+4. Install the rest of the packages
 
 ``` conda install numpy tensorboard```
