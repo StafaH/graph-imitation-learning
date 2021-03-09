@@ -25,39 +25,19 @@ import numpy as np
 
 import torch
 import torchvision
-from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import Dataset
-from torchsummary import summary
 
-from model import GraphModel
+from torch_geometric.data import Data
+from torch_geometric.data import DataLoader
+
+from model.GCN import SimpleGCNModel
+from data import ProcessStateToGraphData
 from utils import set_manual_seed, save_checkpoint
 from config import load_default_config
 
 
 def _init_fn(worker_id):
     np.random.seed(int(53))
-
-
-class GraphDataset(Dataset):
-    def __init__(self, root, transform=None):
-        self.root_dir = root
-        self.transform = transform
-
-    def __len__(self):
-        images = glob.glob('{}*.jpg'.format(self.root_dir))
-        return(int(len(images)))
-
-    def get_image(self, n):
-        image = Image.open('{}{}.jpg'.format(self.root_dir, n))
-        return image
-
-    def __getitem__(self, idx):
-        image = Image.open(f'{self.root_dir}{idx}.jpg')
-        if self.transform is not None:
-            image = self.transform(image)
-
-        return image
 
 
 def main(args):
@@ -81,36 +61,46 @@ def main(args):
     else:
         device = torch.device('cpu')
 
-    print("Current device is set to: ", device)
-
-    transformer = transforms.Compose([
-                                     transforms.Resize((128, 128)),
-                                     transforms.ToTensor(),
-                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                                     ])
+    print('Current device is set to: ', device)
 
     if(not os.path.exists(config.data_dir)):
-        print("The data directory does not exist:", config.data_dir)
+        print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = GraphDataset(config.data_dir, transform=transformer)
-    print("Images loaded from data directory: ", len(dataset))
+    data = ProcessStateToGraphData(config.data_dir + 'state_data.npy')
+
+    dataset = []
+    for i in range(len(data) - 1):
+        nodes = torch.tensor([data[i][0], data[i][1], data[i][2], data[i][3]], dtype=torch.float)
+        edge_index = torch.tensor([[0, 1],
+                                   [1, 0],
+                                   [0, 2],
+                                   [2, 0],
+                                   [0, 3],
+                                   [3, 0],
+                                   [1, 2],
+                                   [2, 1],
+                                   [1, 3],
+                                   [3, 1],
+                                   [2, 3],
+                                   [3, 2]], dtype=torch.long)
+        y = torch.tensor([data[i + 1][3]], dtype=torch.float)
+        graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
+        dataset.append(graph_data)
+
+    #dataset = GraphDataset(config.data_dir, transform=transformer)
+    #print("Images loaded from data directory: ", len(dataset))
 
     # Load the dataset (num_workers is async, set to 0 if using notebooks)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size,
-                                         pin_memory=True, num_workers=4,
-                                         worker_init_fn=_init_fn)
+    loader = DataLoader(dataset, batch_size=config.batch_size)
+                                         #pin_memory=True, num_workers=4,
+                                         #worker_init_fn=_init_fn)
 
     # Build Model
-
-    model = GraphModel()
+    model = SimpleGCNModel(3, 3)
     model.to(device=device)
 
-    # Optional: Print summary of model
-    # summary(transporter_model, [(3, 128, 128), (3, 128, 128)])
-
     optimizer = torch.optim.Adam(model.parameters(), 1e-3)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, int(25000), gamma=0.95)
     start_epoch = 0
 
     # Load a model if resuming training
@@ -134,8 +124,6 @@ def main(args):
     # Dump training information in log folder (for future reference!)
     with open(config.log_dir + "/info.txt", "w") as text_file:
         print(f"Data directory: {config.data_dir}", file=text_file)
-        print(f"Channels: {config.num_channels}", file=text_file)
-        print(f"Keypoints: {config.num_keypoints}", file=text_file)
         print(f"Epochs: {config.num_epochs}", file=text_file)
         print(f"Batch Size: {config.batch_size}", file=text_file)
 
@@ -143,27 +131,20 @@ def main(args):
     print("Training Transporter Network")
     print("----------------------------------------\n")
 
+    model.train()
     pbar = tqdm(total=config.num_epochs)
     pbar.n = start_epoch
     pbar.refresh()
     for epoch in range(start_epoch, config.num_epochs):
-        for i, (source, target) in enumerate(loader):
-            model.train()
-            source = source.to(device)
-            target = target.to(device)
-
+        for i, data in enumerate(loader):
+            
+            data = data.to(device)
             optimizer.zero_grad(set_to_none=True)
-            reconstruction = model(source, target)
-            loss = torch.nn.functional.mse_loss(reconstruction, target)
+            
+            out = model(data.x, data.edge_index, data.batch)
+            loss = torch.nn.functional.mse_loss(out, data.y)
             loss.backward()
-
             optimizer.step()
-            scheduler.step()
-
-            # The sampler will cause enumerate(loader) to loop infinitely,
-            # so we must break manually every epoch
-            if i % len(dataset) == 0:
-                break
 
         pbar.update(1)
         pbar.set_description(f'Epoch {epoch} - Loss - {loss:.5f}')
@@ -173,21 +154,7 @@ def main(args):
                                                             'optimizer_state_dict': optimizer.state_dict(),
                                                             'loss': loss})
 
-        summary_writer.add_scalar('reconstruction_loss', loss, epoch)
-
-        # Due to large file size of image grids, only save images every 1000 epochs
-        if epoch % 1000 == 0:
-            reconst_grid = torchvision.utils.make_grid(reconstruction)
-            MEAN = torch.tensor([0.5, 0.5, 0.5], device=device)
-            STD = torch.tensor([0.5, 0.5, 0.5], device=device)
-            source = source * STD[:, None, None] + MEAN[:, None, None]
-            target = target * STD[:, None, None] + MEAN[:, None, None]
-            source_grid = torchvision.utils.make_grid(source)
-            target_grid = torchvision.utils.make_grid(target)
-            summary_writer.add_image('source', source_grid, epoch)
-            summary_writer.add_image('target', target_grid, epoch)
-            summary_writer.add_image('reconst_target', reconst_grid, epoch)
-
+        summary_writer.add_scalar('loss', loss, epoch)
         summary_writer.flush()
 
 
