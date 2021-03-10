@@ -68,12 +68,23 @@ def main(args):
         return
 
     dataset = []
+
+    # One-hot encodings
+    target_enc = np.asarray([1, 0, 0])
+    distract_enc = np.asarray([0, 1, 0])
+    gripper_enc = np.asarray([0, 0, 1])
+
     for i in range(10):
         for j in range(10):
             data = ProcessStateToGraphData(f'{config.data_dir}reach/state_data_{i}_{j}.npy')
 
             for k in range(len(data) - 1):
-                nodes = torch.tensor([data[k][0], data[k][1], data[k][2], data[k][3]], dtype=torch.float)
+                target_node = np.concatenate((data[k][0], target_enc))
+                distract_node = np.concatenate((data[k][1], distract_enc))
+                distract2_node = np.concatenate((data[k][2], distract_enc))
+                gripper_node = np.concatenate((data[k][3], gripper_enc))
+
+                nodes = torch.tensor([target_node, distract_node, distract2_node, gripper_node], dtype=torch.float)
                 edge_index = torch.tensor([[0, 1],
                                            [1, 0],
                                            [0, 2],
@@ -99,7 +110,7 @@ def main(args):
                                          #worker_init_fn=_init_fn)
 
     # Build Model
-    model = SimpleGCNModel(3, 3)
+    model = SimpleGCNModel(6, 3)
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), 1e-3)

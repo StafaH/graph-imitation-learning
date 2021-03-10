@@ -25,7 +25,7 @@ def load_default_config():
     config = Config({})
     config.data_dir = 'C:/code/graph-imitation-learning/data/'
     config.log_dir = 'logs/'
-    config.num_epochs = 1000
+    config.num_epochs = 500
     config.model_name = 'graph_model'
     config.batch_size = 64
 
