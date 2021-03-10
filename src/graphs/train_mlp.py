@@ -46,7 +46,7 @@ def main(args):
     print("----------------------------------------\n")
 
     # Manual seeds for reproducible results
-    set_manual_seed(53)
+    set_manual_seed(args.seed)
     config = load_default_config()
     print(config)
     print(args)
@@ -67,28 +67,40 @@ def main(args):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    data = ProcessStateToGraphData(config.data_dir + 'reach_target/variation0/episodes/episode0/state_data.npy')
-    print()
-
     dataset = []
-    for i in range(len(data) - 1):
-        nodes = torch.tensor([data[i][0], data[i][1], data[i][2], data[i][3]], dtype=torch.float)
-        edge_index = torch.tensor([[0, 1],
-                                   [1, 0],
-                                   [0, 2],
-                                   [2, 0],
-                                   [0, 3],
-                                   [3, 0],
-                                   [1, 2],
-                                   [2, 1],
-                                   [1, 3],
-                                   [3, 1],
-                                   [2, 3],
-                                   [3, 2]], dtype=torch.long)
-        y = torch.tensor([data[i + 1][3]], dtype=torch.float)
-        graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
-        dataset.append(graph_data)
 
+    # One-hot encodings
+    target_enc = np.asarray([1, 0, 0])
+    distract_enc = np.asarray([0, 1, 0])
+    gripper_enc = np.asarray([0, 0, 1])
+
+    for i in range(10):
+        for j in range(10):
+            data = ProcessStateToGraphData(f'{config.data_dir}reach/state_data_{i}_{j}.npy')
+
+            for k in range(len(data) - 1):
+                target_node = np.concatenate((data[k][0], target_enc))
+                distract_node = np.concatenate((data[k][1], distract_enc))
+                distract2_node = np.concatenate((data[k][2], distract_enc))
+                gripper_node = np.concatenate((data[k][3], gripper_enc))
+
+                nodes = torch.tensor([target_node, distract_node, distract2_node, gripper_node], dtype=torch.float)
+                edge_index = torch.tensor([[0, 1],
+                                           [1, 0],
+                                           [0, 2],
+                                           [2, 0],
+                                           [0, 3],
+                                           [3, 0],
+                                           [1, 2],
+                                           [2, 1],
+                                           [1, 3],
+                                           [3, 1],
+                                           [2, 3],
+                                           [3, 2]], dtype=torch.long)
+                y = torch.tensor([data[k + 1][3]], dtype=torch.float)
+                graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
+                dataset.append(graph_data)
+    
     #dataset = GraphDataset(config.data_dir, transform=transformer)
     #print("Images loaded from data directory: ", len(dataset))
 
@@ -99,11 +111,11 @@ def main(args):
 
     # Build Model
     input_dim = dataset[0].num_node_features * dataset[0].num_nodes
-    output_dim = dataset[0].num_node_features 
+    output_dim = 3 
     model = MLP(
         input_dim,
         output_dim,
-        hidden_dims=[64, 64],
+        hidden_dims=args.hiddens,
         act="relu",
         output_act=None,
         init_weights=True
@@ -124,7 +136,10 @@ def main(args):
 
     # Create a log directory using the current timestamp
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    config.log_dir = os.path.join(config.log_dir, 'transporter' + '_' + current_time)
+    config.log_dir = os.path.join(
+        config.log_dir, 
+        args.tag + '_' + "seed{}".format(args.seed) + '_' + current_time
+    )
 
     os.makedirs(config.log_dir, exist_ok=True)
     print('Logs are being written to {}'.format(config.log_dir))
@@ -175,5 +190,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Graph Neural Network for Imitation Learning')
     parser.add_argument('-r', '--resume', type=str, default='', help='path to last checkpoint (default = None)')
+    parser.add_argument('--tag', type=str, default='exp', help='experiment id')
+    parser.add_argument('--seed', type=int, default=53, help='random seed')
+    parser.add_argument("--hiddens", nargs='+', type=int, default=[64, 64], 
+                            help="mlp hidden layer dimensions")
     args = parser.parse_args()
     main(args)
