@@ -67,26 +67,28 @@ def main(args):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    data = ProcessStateToGraphData(config.data_dir + 'state_data.npy')
-
     dataset = []
-    for i in range(len(data) - 1):
-        nodes = torch.tensor([data[i][0], data[i][1], data[i][2], data[i][3]], dtype=torch.float)
-        edge_index = torch.tensor([[0, 1],
-                                   [1, 0],
-                                   [0, 2],
-                                   [2, 0],
-                                   [0, 3],
-                                   [3, 0],
-                                   [1, 2],
-                                   [2, 1],
-                                   [1, 3],
-                                   [3, 1],
-                                   [2, 3],
-                                   [3, 2]], dtype=torch.long)
-        y = torch.tensor([data[i + 1][3]], dtype=torch.float)
-        graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
-        dataset.append(graph_data)
+    for i in range(10):
+        for j in range(10):
+            data = ProcessStateToGraphData(f'{config.data_dir}reach/state_data_{i}_{j}.npy')
+
+            for k in range(len(data) - 1):
+                nodes = torch.tensor([data[k][0], data[k][1], data[k][2], data[k][3]], dtype=torch.float)
+                edge_index = torch.tensor([[0, 1],
+                                           [1, 0],
+                                           [0, 2],
+                                           [2, 0],
+                                           [0, 3],
+                                           [3, 0],
+                                           [1, 2],
+                                           [2, 1],
+                                           [1, 3],
+                                           [3, 1],
+                                           [2, 3],
+                                           [3, 2]], dtype=torch.long)
+                y = torch.tensor([data[k + 1][3]], dtype=torch.float)
+                graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
+                dataset.append(graph_data)
 
     #dataset = GraphDataset(config.data_dir, transform=transformer)
     #print("Images loaded from data directory: ", len(dataset))

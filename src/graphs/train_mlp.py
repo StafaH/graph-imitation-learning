@@ -67,7 +67,8 @@ def main(args):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    data = ProcessStateToGraphData(config.data_dir + 'state_data.npy')
+    data = ProcessStateToGraphData(config.data_dir + 'reach_target/variation0/episodes/episode0/state_data.npy')
+    print()
 
     dataset = []
     for i in range(len(data) - 1):

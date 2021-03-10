@@ -27,6 +27,6 @@ def load_default_config():
     config.log_dir = 'logs/'
     config.num_epochs = 1000
     config.model_name = 'graph_model'
-    config.batch_size = 32
+    config.batch_size = 64
 
     return config

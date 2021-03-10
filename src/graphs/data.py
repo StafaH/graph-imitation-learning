@@ -6,6 +6,6 @@ from torch_geometric.data import InMemoryDataset
 
 
 def ProcessStateToGraphData(file):
-    data = np.load(file)
+    data = np.load(file, allow_pickle=True)
     return data
 
