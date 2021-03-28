@@ -156,9 +156,8 @@ def main(config):
 
             for data in loader_test:
                 data = data.to(device)
-                flat_x = data.x.reshape(-1, input_dim)
                 with torch.no_grad():
-                    out = model(flat_x)
+                    out = model(data.x, data.edge_index, data.batch)
                 loss_eval = torch.nn.functional.mse_loss(out, data.y)
                 loss_eval_total += loss_eval.item()
 
