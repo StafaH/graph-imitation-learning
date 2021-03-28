@@ -2,6 +2,8 @@
 trained_models/
 logs/
 logs_old/
+archived/
+data/
 
 # vscode files
 .vscode/
