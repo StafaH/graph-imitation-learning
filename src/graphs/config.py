@@ -51,13 +51,26 @@ def get_base_parser():
                         help='path to last checkpoint (default = None)')
     parser.add_argument('--data_dir',
                         type=str,
-                        default='data/reach_target_processed',
+                        default='data/reach_target',
                         help='path to imitation data')
     parser.add_argument('--log_dir',
                         type=str,
                         default='logs/',
                         help='path to experiment results')
-    parser.add_argument('--eval_interval', type=int, default=10)
+    parser.add_argument("--eval",
+                        action='store_true',
+                        help="if to train or test")
+
+    # evaluation stuff
+    parser.add_argument('--max_episode_length', type=int, default=500)
+    parser.add_argument('--eval_interval',
+                        type=int,
+                        default=10,
+                        help="evalution interval during training")
+    parser.add_argument('--eval_batch_size', type=int, default=10)
+    parser.add_argument('--checkpoint_dir',
+                        type=str,
+                        help='folder path to load checkpoint from')
 
     # model stuff
     parser.add_argument('--model_name', type=str, default='graph_model')

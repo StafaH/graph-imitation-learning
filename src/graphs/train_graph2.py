@@ -23,7 +23,6 @@ from tqdm import tqdm
 import numpy as np
 
 import torch
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
 
 from torch_geometric.data import Data, DataLoader

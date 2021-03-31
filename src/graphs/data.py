@@ -30,20 +30,23 @@ def split_train_test(dataset, train_ratio=0.8):
     return d_train, d_test
 
 
-def load_data_to_graph(data_dir):
-    """Constructs dataset for behavior cloning.
+# -----------------------------------------------------------------------------------
+#                   Reach Target
+# -----------------------------------------------------------------------------------
 
-    TODO: use torch.geometric.data.Dataset instead.
-    """
+target_enc = np.array([1, 0, 0])
+distract_enc = np.array([0, 1, 0])
+gripper_enc = np.array([0, 0, 1])
+
+
+def load_data_to_graph(data_dir, use_relative_pos=True):
+    """Constructs dataset for behavior cloning from JSON dataset."""
     # get all episodes
     pattern = os.path.join(data_dir, "state_data_*.json")
     episode_files = glob.glob(pattern)
 
     # construct dataset
     dataset = []
-    target_enc = np.array([1, 0, 0])
-    distract_enc = np.array([0, 1, 0])
-    gripper_enc = np.array([0, 0, 1])
 
     for f_path in episode_files:
         with open(f_path, "r") as f:
@@ -54,14 +57,30 @@ def load_data_to_graph(data_dir):
             # nodes
             node_num = len(obs[k])
 
-            target_node = np.concatenate(
-                [np.array(obs[k]["target"]), target_enc])
-            distract_node = np.concatenate(
-                [np.array(obs[k]["distractor0"]), distract_enc])
-            distract2_node = np.concatenate(
-                [np.array(obs[k]["distractor1"]), distract_enc])
-            gripper_node = np.concatenate(
-                [np.array(obs[k]["tip"]), gripper_enc])
+            if use_relative_pos:
+                target_node = np.concatenate([
+                    np.array(obs[k]["target"]) - np.array(obs[k]["tip"]),
+                    target_enc
+                ])
+                distract_node = np.concatenate([
+                    np.array(obs[k]["distractor0"]) - np.array(obs[k]["tip"]),
+                    distract_enc
+                ])
+                distract2_node = np.concatenate([
+                    np.array(obs[k]["distractor1"]) - np.array(obs[k]["tip"]),
+                    distract_enc
+                ])
+                gripper_node = np.concatenate(
+                    [np.array(obs[k]["tip"]), gripper_enc])
+            else:
+                target_node = np.concatenate(
+                    [np.array(obs[k]["target"]), target_enc])
+                distract_node = np.concatenate(
+                    [np.array(obs[k]["distractor0"]), distract_enc])
+                distract2_node = np.concatenate(
+                    [np.array(obs[k]["distractor1"]), distract_enc])
+                gripper_node = np.concatenate(
+                    [np.array(obs[k]["tip"]), gripper_enc])
 
             nodes = torch.tensor(
                 [target_node, distract_node, distract2_node, gripper_node],
@@ -81,6 +100,7 @@ def load_data_to_graph(data_dir):
                               edge_index=edge_index.t().contiguous(),
                               y=y)
             dataset.append(graph_data)
+
     return dataset
 
 
@@ -88,30 +108,6 @@ def preprocess_data(data_dir, out_dir):
     """Converts raw data from RLBench to desired format.
 
     Use JSON format for easy visualizaing. 
-    
-    Available keys in each observation
-        * left_shoulder_rgb 
-        * left_shoulder_depth 
-        * left_shoulder_mask 
-        * right_shoulder_rgb 
-        * right_shoulder_depth 
-        * right_shoulder_mask 
-        * wrist_rgb 
-        * wrist_depth 
-        * wrist_mask 
-        * front_rgb 
-        * front_depth 
-        * front_mask 
-        * joint_velocities 
-        * joint_positions 
-        * joint_forces 
-        * gripper_open 
-        * gripper_pose 
-        * gripper_matrix 
-        * gripper_joint_positions 
-        * gripper_touch_forces 
-        * wrist_camera_matrix 
-        * task_low_dim_state    
     """
     os.makedirs(out_dir, exist_ok=True)
     # get all episodes
@@ -151,7 +147,11 @@ def preprocess_data(data_dir, out_dir):
 
 
 # -----------------------------------------------------------------------------------
-#                   Testing only
+#                   Block Stacking
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+#                   Preprocessing only
 # -----------------------------------------------------------------------------------
 
 if __name__ == "__main__":
