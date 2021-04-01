@@ -51,7 +51,7 @@ def get_base_parser():
                         help='path to last checkpoint (default = None)')
     parser.add_argument('--data_dir',
                         type=str,
-                        default='data/reach_target',
+                        default='data/reach_target/',
                         help='path to imitation data')
     parser.add_argument('--log_dir',
                         type=str,
