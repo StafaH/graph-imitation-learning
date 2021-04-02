@@ -73,7 +73,7 @@ def get_base_parser():
                         help='folder path to load checkpoint from')
 
     # model stuff
-    parser.add_argument('--model_name', type=str, default='graph_model')
+    parser.add_argument('--model_name', type=str, default='mlp')
     parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument("--hidden_dims",
