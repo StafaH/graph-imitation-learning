@@ -62,7 +62,7 @@ def get_base_parser():
                         help="if to train or test")
 
     # evaluation stuff
-    parser.add_argument('--max_episode_length', type=int, default=500)
+    parser.add_argument('--max_episode_length', type=int, default=100)
     parser.add_argument('--eval_interval',
                         type=int,
                         default=10,
@@ -81,5 +81,9 @@ def get_base_parser():
                         type=int,
                         default=[64, 64],
                         help="mlp hidden layer dimensions")
+
+    # data stuff
+    parser.add_argument('--episodes_per_update', type=int, default=10)
+    parser.add_argument('--sub_epochs', type=int, default=10)
 
     return parser

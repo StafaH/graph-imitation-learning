@@ -1,29 +1,6 @@
 #!/usr/bin/env python
-"""Reach target task with MLP
-
-Available keys in each observation
-    * left_shoulder_rgb 
-    * left_shoulder_depth 
-    * left_shoulder_mask 
-    * right_shoulder_rgb 
-    * right_shoulder_depth 
-    * right_shoulder_mask 
-    * wrist_rgb 
-    * wrist_depth 
-    * wrist_mask 
-    * front_rgb 
-    * front_depth 
-    * front_mask 
-    * joint_velocities 
-    * joint_positions 
-    * joint_forces 
-    * gripper_open 
-    * gripper_pose 
-    * gripper_matrix 
-    * gripper_joint_positions 
-    * gripper_touch_forces 
-    * wrist_camera_matrix 
-    * task_low_dim_state    
+"""Reach target task 
+ 
 """
 import argparse
 from datetime import datetime
@@ -49,39 +26,100 @@ from rlbench.tasks import ReachTarget
 from config import get_base_parser
 from data import split_train_test
 from model.mlp import MLP
+from model.GCN import GCNModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
+from utils import pose_quat_to_rpy, pose_rpy_to_quat
 
 # -----------------------------------------------------------------------------------
 #                   Funcs
 # -----------------------------------------------------------------------------------
 
+# reach target task
+task_name = "rt"
+
 target_enc = np.array([1, 0, 0])
 distract_enc = np.array([0, 1, 0])
 gripper_enc = np.array([0, 0, 1])
 
+num_node_features = 9
+num_nodes = 4
+# # for pose output
+# output_dim = 6
+# for joint velocities
+output_dim = 7
 
-def obs_to_graph(obs, relative_pos=True):
+
+def make_env():
+    """Constructs the environment"""
+    obs_config = ObservationConfig()
+    obs_config.set_all_low_dim(True)
+
+    # action_mode = ActionMode(ArmActionMode.ABS_EE_POSE_WORLD_FRAME)
+    # action_mode = ActionMode(ArmActionMode.ABS_EE_POSE_PLAN_WORLD_FRAME)
+    action_mode = ActionMode(ArmActionMode.ABS_JOINT_VELOCITY)
+    env = Environment(action_mode, obs_config=obs_config, headless=True)
+    env.launch()
+
+    task = env.get_task(ReachTarget)
+    return env, task
+
+
+def collect_data(config, task, relative_pos=False, joint_vel=True):
+    """Generates live data for imitation learning."""
+    demos = task.get_demos(config.episodes_per_update,
+                           live_demos=True)  # -> List[List[Observation]]
+    dataset = []
+
+    # convert data
+    for demo in demos:
+        for t in range(len(demo) - 1):
+            obs = demo[t]
+            nodes, edge_index = obs_to_graph(obs, relative_pos=relative_pos)
+
+            if joint_vel:
+                y = torch.tensor([demo[t + 1].joint_velocities],
+                                 dtype=torch.float)
+            else:
+                gripper_pose_next = demo[t + 1].gripper_pose
+                gripper_pose_next = pose_quat_to_rpy(gripper_pose_next)
+                y = torch.tensor([gripper_pose_next], dtype=torch.float)
+
+            graph_data = Data(x=nodes,
+                              edge_index=edge_index.t().contiguous(),
+                              y=y)
+            dataset.append(graph_data)
+    return dataset
+
+
+def obs_to_graph(obs, relative_pos=False):
     """"Converts raw obs from rlbench to graph attributes."""
     node_num = len(obs.task_low_dim_state)
 
     # nodes
+    gripper_pose = obs.gripper_pose
+    target_pose = obs.task_low_dim_state[0]
+    distract_pose = obs.task_low_dim_state[1]
+    distract2_pose = obs.task_low_dim_state[2]
+
+    gripper_pose = pose_quat_to_rpy(gripper_pose)
+    target_pose = pose_quat_to_rpy(target_pose)
+    distract_pose = pose_quat_to_rpy(distract_pose)
+    distract2_pose = pose_quat_to_rpy(distract2_pose)
+
     if relative_pos:
-        gripper_pos = obs.task_low_dim_state[3]
-        target_node = np.concatenate(
-            [obs.task_low_dim_state[0] - gripper_pos, target_enc])
+        # TODO: fix quaternion subtraction
+        target_node = np.concatenate([target_pose - gripper_pose, target_enc])
         distract_node = np.concatenate(
-            [obs.task_low_dim_state[1] - gripper_pos, distract_enc])
+            [distract_pose - gripper_pose, distract_enc])
         distract2_node = np.concatenate(
-            [obs.task_low_dim_state[2] - gripper_pos, distract_enc])
+            [distract2_pose - gripper_pose, distract_enc])
         gripper_node = np.concatenate(
-            [obs.task_low_dim_state[3] - gripper_pos, gripper_enc])
+            [gripper_pose - gripper_pose, gripper_enc])
     else:
-        target_node = np.concatenate([obs.task_low_dim_state[0], target_enc])
-        distract_node = np.concatenate(
-            [obs.task_low_dim_state[1], distract_enc])
-        distract2_node = np.concatenate(
-            [obs.task_low_dim_state[2], distract_enc])
-        gripper_node = np.concatenate([obs.task_low_dim_state[3], gripper_enc])
+        target_node = np.concatenate([target_pose, target_enc])
+        distract_node = np.concatenate([distract_pose, distract_enc])
+        distract2_node = np.concatenate([distract2_pose, distract_enc])
+        gripper_node = np.concatenate([gripper_pose, gripper_enc])
 
     nodes = torch.tensor(
         [target_node, distract_node, distract2_node, gripper_node],
@@ -95,13 +133,13 @@ def obs_to_graph(obs, relative_pos=True):
     return nodes, edge_index
 
 
-def make_graph_dataset(data_dir, relative_pos=True):
+def make_graph_dataset(data_dir, relative_pos=False, joint_vel=True):
     """Constructs graph dataset from raw rlbench data."""
     # TODO(Justin): use torch.geometric.data.Dataset instead.
     dataset = []
 
     # get all episodes
-    pattern = os.path.join(data_dir, "*/episodes/episode*")
+    pattern = os.path.join(data_dir, "**/episodes/episode*")
     episode_dirs = glob.glob(pattern, recursive=True)
 
     for d in episode_dirs:
@@ -115,8 +153,13 @@ def make_graph_dataset(data_dir, relative_pos=True):
             obs = data._observations[t]
             nodes, edge_index = obs_to_graph(obs, relative_pos=relative_pos)
 
-            state_next = data._observations[t + 1].task_low_dim_state
-            y = torch.tensor([state_next[3]], dtype=torch.float)
+            gripper_pose_next = data._observations[t + 1].gripper_pose
+            gripper_pose_next = pose_quat_to_rpy(gripper_pose_next)
+            if joint_vel:
+                y = torch.tensor([data._observations[t + 1].joint_velocities],
+                                 dtype=torch.float)
+            else:
+                y = torch.tensor([gripper_pose_next], dtype=torch.float)
 
             graph_data = Data(x=nodes,
                               edge_index=edge_index.t().contiguous(),
@@ -153,13 +196,49 @@ class MLPAgent:
     def load_state_dict(self, state_dict):
         self.model.load_state_dict(state_dict)
 
-    def act(self, obs):
+    def act(self, graph):
         # concatenate all graph nodes to single vector,
         # assume all graphs have same number of nodes and and in order
         # assumes nodes from same graph are contiguous in batch
-        flat_x = obs.x.reshape(-1, self.input_dim)
+        flat_x = graph.x.reshape(-1, self.input_dim)
         action = self.model(flat_x)
         return action
+
+
+class GraphAgent(MLPAgent):
+
+    def __init__(self, config, input_dim, output_dim):
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.model = GCNModel(input_dim,
+                              output_dim,
+                              config.hidden_dims,
+                              act="relu",
+                              output_act=None)
+
+    def act(self, graph):
+        if hasattr(graph, "batch"):
+            # training
+            batch = graph.batch
+        else:
+            # testing
+            batch = torch.zeros(num_nodes).long()
+        action = self.model(graph.x, graph.edge_index, batch)
+        return action
+
+
+def make_agent(config):
+    """Constructs agent based on config."""
+    if config.model_name == "mlp":
+        input_dim = num_node_features * num_nodes
+        agent = MLPAgent(config, input_dim, output_dim)
+    elif config.model_name == "graph":
+        input_dim = num_node_features
+        agent = GraphAgent(config, input_dim, output_dim)
+    else:
+        raise NotImplementedError
+    return agent
 
 
 # -----------------------------------------------------------------------------------
@@ -192,17 +271,8 @@ def train(config):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = make_graph_dataset(config.data_dir)
-    dataset_train, dataset_test = split_train_test(dataset)
-
-    # Load the dataset (num_workers is async, set to 0 if using notebooks)
-    loader = DataLoader(dataset_train, batch_size=config.batch_size)
-    loader_test = DataLoader(dataset_test, batch_size=config.batch_size)
-
     # Build Model
-    input_dim = 24
-    output_dim = 3
-    agent = MLPAgent(config, input_dim, output_dim)
+    agent = make_agent(config)
     agent.to(device=device)
 
     optimizer = torch.optim.Adam(agent.model.parameters(), 1e-3)
@@ -220,8 +290,8 @@ def train(config):
     # Create a log directory using the current timestamp
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
     config.log_dir = os.path.join(
-        config.log_dir,
-        config.tag + '_' + "seed{}".format(config.seed) + '_' + current_time)
+        config.log_dir, "_".join([task_name, config.model_name, config.tag]),
+        "seed{}".format(config.seed) + '_' + current_time)
 
     os.makedirs(config.log_dir, exist_ok=True)
     print('Logs are being written to {}'.format(config.log_dir))
@@ -239,22 +309,36 @@ def train(config):
     pbar = tqdm(total=config.num_epochs)
     pbar.n = start_epoch
     pbar.refresh()
+
+    # loss_eval_best = None
+    env, task = make_env()
+
     for epoch in range(start_epoch, config.num_epochs):
         agent.train()
-        loss_total = 0.0
 
-        for i, data in enumerate(loader):
-            data = data.to(device)
-            optimizer.zero_grad(set_to_none=True)
+        print("Episode {}, Collecting new data...".format(epoch))
+        dataset = collect_data(config, task)
+        dataset_train, dataset_test = split_train_test(dataset)
 
-            out = agent.act(data)
-            loss = torch.nn.functional.mse_loss(out, data.y)
-            loss_total += loss.item()
+        # Load the dataset (num_workers is async, set to 0 if using notebooks)
+        loader = DataLoader(dataset_train, batch_size=config.batch_size)
+        loader_test = DataLoader(dataset_test, batch_size=config.batch_size)
 
-            loss.backward()
-            optimizer.step()
+        for _ in range(config.sub_epochs):
+            loss_total = 0.0
 
-        loss_total /= len(loader)
+            for i, data in enumerate(loader):
+                data = data.to(device)
+                optimizer.zero_grad(set_to_none=True)
+
+                out = agent.act(data)
+                loss = torch.nn.functional.mse_loss(out, data.y)
+                loss_total += loss.item()
+
+                loss.backward()
+                optimizer.step()
+
+            loss_total /= len(loader)
 
         # logging
         pbar.update(1)
@@ -264,7 +348,7 @@ def train(config):
 
         # checkpoint
         save_checkpoint(
-            config.log_dir, config.model_name, {
+            config.log_dir, "checkpoint", {
                 'epoch': epoch,
                 'model_state_dict': agent.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
@@ -272,20 +356,29 @@ def train(config):
             })
 
         # evaluation
-        if epoch > 0 and epoch % config.eval_interval == 0:
-            agent.eval()
-            loss_eval_total = 0.0
+        agent.eval()
+        loss_eval_total = 0.0
 
-            for data in loader_test:
-                data = data.to(device)
-                with torch.no_grad():
-                    out = agent.act(data)
-                loss_eval = torch.nn.functional.mse_loss(out, data.y)
-                loss_eval_total += loss_eval.item()
+        for data in loader_test:
+            data = data.to(device)
+            with torch.no_grad():
+                out = agent.act(data)
+            loss_eval = torch.nn.functional.mse_loss(out, data.y)
+            loss_eval_total += loss_eval.item()
 
-            loss_eval_total /= len(loader_test)
-            summary_writer.add_scalar('loss_eval', loss_eval_total, epoch)
-            summary_writer.flush()
+        loss_eval_total /= len(loader_test)
+        summary_writer.add_scalar('loss_eval', loss_eval_total, epoch)
+        summary_writer.flush()
+
+        # if loss_eval_best is None or loss_eval_total < loss_eval_best:
+        #     loss_eval_best = loss_eval_total
+        #     save_checkpoint(
+        #         config.log_dir, "checkpoint_best", {
+        #             'epoch': epoch,
+        #             'model_state_dict': agent.state_dict(),
+        #             'optimizer_state_dict': optimizer.state_dict(),
+        #             'loss': loss_total
+        #         })
 
 
 def test_policy(config):
@@ -294,8 +387,9 @@ def test_policy(config):
     obs_config = ObservationConfig()
     obs_config.set_all(True)
 
-    action_mode = ActionMode(ArmActionMode.ABS_EE_POSE_WORLD_FRAME)
+    # action_mode = ActionMode(ArmActionMode.ABS_EE_POSE_WORLD_FRAME)
     # action_mode = ActionMode(ArmActionMode.ABS_EE_POSE_PLAN_WORLD_FRAME)
+    action_mode = ActionMode(ArmActionMode.ABS_JOINT_VELOCITY)
     env = Environment(action_mode, obs_config=obs_config, headless=False)
     env.launch()
 
@@ -307,14 +401,13 @@ def test_policy(config):
         # NOTE: hack!
         old_config = SN()
         old_config.__dict__.update(yaml.load(f))
+    agent = make_agent(old_config)
 
-    input_dim = 24
-    output_dim = 3
-    agent = MLPAgent(old_config, input_dim, output_dim)
     # NOTE: hack!
-    checkpoint_path = os.path.join(config.checkpoint_dir, [
-        f for f in os.listdir(config.checkpoint_dir) if '.pth' in f
-    ][0])
+    # checkpoint_path = os.path.join(config.checkpoint_dir, [
+    #     f for f in os.listdir(config.checkpoint_dir) if '.pth' in f
+    # ][0])
+    checkpoint_path = os.path.join(config.checkpoint_dir, "checkpoint.pth")
     checkpoint = torch.load(checkpoint_path)
     agent.load_state_dict(checkpoint['model_state_dict'])
 
@@ -334,10 +427,16 @@ def test_policy(config):
             with torch.no_grad():
                 action = agent.act(graph)
 
-            arm = action.squeeze().numpy()
+            # # for pose output
+            # pose_pred = action.squeeze().numpy()
+            # full_action = pose_rpy_to_quat(pose_pred)
+
+            # for joint velocities
+            vel_pred = action.squeeze().numpy()
+            full_action = vel_pred
+
             gripper = [1.0]  # Always open
-            rotation = obs.gripper_pose[3:]
-            full_action = np.concatenate([arm, rotation, gripper], axis=-1)
+            full_action = np.concatenate([full_action, gripper], axis=-1)
 
             obs, reward, done = task.step(full_action)
             print("step: {}, returns: {}".format(length, total_r))
@@ -370,3 +469,9 @@ if __name__ == '__main__':
         test_policy(config)
     else:
         train(config)
+    # env, task = make_env()
+
+    # demos = task.get_demos(2, live_demos=True)  # -> List[List[Observation]]
+    # import pdb
+    # pdb.set_trace()
+    # print()
