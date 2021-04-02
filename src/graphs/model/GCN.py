@@ -48,7 +48,7 @@ class GCNModel(nn.Module):
         super(GCNModel, self).__init__()
         dims = [input_dim] + hidden_dims + [output_dim]
 
-        self.gconvs = nn.ModuleList(
+        self.graph_conv = nn.ModuleList(
             [GCNConv(dims[i], dims[i + 1]) for i in range(len(dims) - 2)])
         self.output_fc = nn.Linear(dims[-2], dims[-1])
 
@@ -58,8 +58,8 @@ class GCNModel(nn.Module):
     def forward(self, x, edge_index, batch):
         out = x
         # Node embedding
-        for gconv in self.gconvs:
-            out = self.act(gconv(out, edge_index))
+        for graph_conv in self.graph_conv:
+            out = self.act(graph_conv(out, edge_index))
 
         # Node aggregation
         out = global_mean_pool(out, batch)

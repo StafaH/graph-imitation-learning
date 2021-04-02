@@ -28,8 +28,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import Data, DataLoader
 
 from config import get_base_parser
-from data import load_data_to_graph, split_train_test
-from model.GCN import GCNModel
+from data import load_npy_to_graph, split_train_test
+from model.GCN import SimpleGCNModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 
 # -----------------------------------------------------------------------------------
@@ -66,7 +66,7 @@ def main(config):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = load_data_to_graph(config.data_dir)
+    dataset = load_npy_to_graph(config.data_dir)
     dataset_train, dataset_test = split_train_test(dataset)
 
     # Load the dataset (num_workers is async, set to 0 if using notebooks)
@@ -75,12 +75,14 @@ def main(config):
 
     # Build Model
     input_dim = dataset[0].num_node_features
-    output_dim = 3
-    model = GCNModel(input_dim,
-                     output_dim,
-                     config.hidden_dims,
-                     act="relu",
-                     output_act=None)
+    output_dim = 7
+    
+    model = SimpleGCNModel(input_dim, output_dim)
+    # model = GCNModel(input_dim,
+    #                  output_dim,
+    #                  config.hidden_dims,
+    #                  act="relu",
+    #                  output_act=None)
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), 1e-3)
