@@ -107,6 +107,9 @@ def load_npy_to_graph(data_dir, use_relative_pos=False):
             diff = [x, y, z] + [qx, qy, qz, qw]
 
             y = torch.tensor([diff], dtype=torch.float)
+            # Joint velocities:             
+            # y = torch.tensor([state_data[k + 1][2]], dtype=torch.float)
+
             graph_data = Data(x=nodes,
                               edge_index=edge_index.t().contiguous(),
                               y=y)
