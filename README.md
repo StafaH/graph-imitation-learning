@@ -33,6 +33,12 @@ pip install torch-geometric
 
 ``` conda install numpy tensorboard```
 
+## Training
+[0]: joint position
+[1]: joint velocity
+[2]: Gripper open/close
+[3]: Gripper pose
+
 ## Visualization
 1) To visualize the resulting model's loss in Tensorboard, run the following command, pointing to the ```logs``` directory where the trained model is saved:
 ```tensorboard --logdir /PATh/TO/CLONE/graph-imitation-learning/src/graphs```
