@@ -23,14 +23,14 @@ class MLP(nn.Module):
                  output_act=None,
                  init_weights=False,
                  **kwargs):
-        """ multi-layer perception / fully-connected network 
+        """ multi-layer perception / fully-connected network
 
         Args:
-            input_dim (int): input dimension 
-            output_dim (int): output dimension 
-            hidden_dims (list): hidden layer dimensions 
-            act (str): hidden layer activation 
-            output_act (str): output layer activation 
+            input_dim (int): input dimension
+            output_dim (int): output dimension
+            hidden_dims (list): hidden layer dimensions
+            act (str): hidden layer activation
+            output_act (str): output layer activation
         """
         super(MLP, self).__init__()
         dims = [input_dim] + hidden_dims + [output_dim]

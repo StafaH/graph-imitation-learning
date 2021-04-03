@@ -23,7 +23,7 @@ GRIPPER_ENC = np.array([0, 0, 1])
 # -----------------------------------------------------------------------------------
 
 
-def load_npy_to_graph(data_dir, use_relative_pos=False):
+def load_npy_to_graph(data_dir, use_relative_pos=True):
     """Constructs graph dataset from state data numpy matrices.
     Shape: num_episodes * (4 + number of objects) * 7 (usually pose xyz-quaternion except for
     gripper open/close which is padded with 6 zeroes)
@@ -57,24 +57,29 @@ def load_npy_to_graph(data_dir, use_relative_pos=False):
             NUM_NODES = 4
 
             if use_relative_pos:
-                # TODO: Fix this so that position is relative, rotation is just carried over
+                # TODO(Mustafa): Currently uses abs rotation, Should we calculate difference in rotation?
+                gripper_position = state_data[k][3][:3]
+                relative_target_position = state_data[k][4][:3] - gripper_position
+                relative_distractor0_position = state_data[k][5][:3] - gripper_position
+                relative_distractor1_position = state_data[k][6][:3] - gripper_position
+
                 target_node = np.concatenate(
-                    [state_data[k][4], target_enc])
+                    [relative_target_position, state_data[k][4][3:], TARGET_ENC])
                 distract_node = np.concatenate(
-                    [state_data[k][5], distract_enc])
+                    [relative_distractor0_position, state_data[k][5][3:], DISTRACT_ENC])
                 distract2_node = np.concatenate(
-                    [state_data[k][6], distract_enc])
+                    [relative_distractor1_position, state_data[k][6][3:], DISTRACT_ENC])
                 gripper_node = np.concatenate(
-                    [state_data[k][3], gripper_enc])
+                    [state_data[k][3], GRIPPER_ENC])
             else:
                 target_node = np.concatenate(
-                    [state_data[k][4], target_enc])
+                    [state_data[k][4], TARGET_ENC])
                 distract_node = np.concatenate(
-                    [state_data[k][5], distract_enc])
+                    [state_data[k][5], DISTRACT_ENC])
                 distract2_node = np.concatenate(
-                    [state_data[k][6], distract_enc])
+                    [state_data[k][6], DISTRACT_ENC])
                 gripper_node = np.concatenate(
-                    [state_data[k][3], gripper_enc])
+                    [state_data[k][3], GRIPPER_ENC])
 
             nodes = torch.tensor(
                 [target_node, distract_node, distract2_node, gripper_node],
@@ -88,34 +93,31 @@ def load_npy_to_graph(data_dir, use_relative_pos=False):
                                       dtype=torch.long)
 
             # Extract labels from future frame
-            # Diff in quaternions is diff = q2 * inverse(q1)
-
-            # TODO: Double check this stuff 
-            # RLbench Pose = X, Y, Z, QX, QY, QZ, QW
-            # Quaternions = QW, QX, QY, QZ
-            q1x, q1y, q1z, q1w = state_data[k][3][3:]
-            q2x, q2y, q2z, q2w = state_data[k + 1][3][3:]
-
-            q1 = Quaternion(q1w, q1x, q1y, q1z)
-            q2 = Quaternion(q2w, q2x, q2y, q2z)
-
-            delta_rot = q2 * q1.inverse
-            qw, qx, qy, qz = list(delta_rot)
-            
-            x, y, z = state_data[k + 1][3][:3] - state_data[k][3][:3]
-
-            diff = [x, y, z] + [qx, qy, qz, qw]
-
-            y = torch.tensor([diff], dtype=torch.float)
-            # Joint velocities:             
-            # y = torch.tensor([state_data[k + 1][2]], dtype=torch.float)
+            y = torch.tensor([state_data[k + 1][1]], dtype=torch.float)
 
             graph_data = Data(x=nodes,
                               edge_index=edge_index.t().contiguous(),
                               y=y)
             dataset.append(graph_data)
 
+    print(f'Total of {len(dataset)} graphs loaded')
     return dataset
+
+
+def diff_in_quaternions(pose1, pose2):
+    # TODO: Double check this stuff
+    # RLbench Pose = X, Y, Z, QX, QY, QZ, QW
+    # Quaternions = QW, QX, QY, QZ
+
+    q1x, q1y, q1z, q1w = pose1[3:]
+    q2x, q2y, q2z, q2w = pose2[3:]
+
+    q1 = Quaternion(q1w, q1x, q1y, q1z)
+    q2 = Quaternion(q2w, q2x, q2y, q2z)
+
+    delta_rot = q2 * q1.inverse
+    qw, qx, qy, qz = list(delta_rot)
+    return qw, qx, qy, qz
 
 
 def split_train_test(dataset, train_ratio=0.8):

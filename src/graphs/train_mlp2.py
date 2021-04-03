@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import Data, DataLoader
 
 from config import get_base_parser
-from data import load_data_to_graph, split_train_test
+from data import load_npy_to_graph, split_train_test
 from model.mlp import MLP
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 
@@ -64,7 +64,7 @@ def main(config):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = load_data_to_graph(config.data_dir)
+    dataset = load_npy_to_graph(config.data_dir)
     dataset_train, dataset_test = split_train_test(dataset)
 
     # Load the dataset (num_workers is async, set to 0 if using notebooks)
@@ -73,11 +73,11 @@ def main(config):
 
     # Build Model
     input_dim = dataset[0].num_node_features * dataset[0].num_nodes
-    output_dim = 3
+    output_dim = 7
     model = MLP(input_dim,
                 output_dim,
                 hidden_dims=config.hidden_dims,
-                act="relu",
+                act="tanh",
                 output_act=None,
                 init_weights=True)
     model.to(device=device)
@@ -112,7 +112,7 @@ def main(config):
     print("----------------------------------------")
     print("Training Transporter Network")
     print("----------------------------------------\n")
-
+    best_eval_loss = 100
     model.train()
     pbar = tqdm(total=config.num_epochs)
     pbar.n = start_epoch
@@ -165,6 +165,16 @@ def main(config):
                 loss_eval_total += loss_eval.item()
 
             loss_eval_total /= len(loader_test)
+            
+            if(loss_eval_total < best_eval_loss):
+                save_checkpoint(
+                    config.log_dir, 'best_eval', {
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss_total})
+                best_eval_loss = loss_eval_total
+            
             summary_writer.add_scalar('loss_eval', loss_eval_total, epoch)
             summary_writer.flush()
 
