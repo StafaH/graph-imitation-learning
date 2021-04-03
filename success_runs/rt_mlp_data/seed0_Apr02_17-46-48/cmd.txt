@@ -1,0 +1,1 @@
+src/graphs/reach_target_rl.py --tag data --seed 0 --hidden_dims 64 64 --model_name mlp --num_epochs 1000 --episodes_per_update 20 --sub_epochs 5

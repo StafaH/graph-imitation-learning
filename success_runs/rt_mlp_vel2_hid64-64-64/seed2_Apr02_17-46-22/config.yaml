@@ -1,0 +1,19 @@
+batch_size: 64
+checkpoint_dir: null
+data_dir: data/reach_target_new/
+episodes_per_update: 10
+eval: false
+eval_batch_size: 10
+eval_interval: 10
+hidden_dims:
+- 64
+- 64
+- 64
+log_dir: logs/rt_mlp_vel2_hid64-64-64/seed2_Apr02_17-46-22
+max_episode_length: 100
+model_name: mlp
+num_epochs: 1000
+resume: ''
+seed: 2
+sub_epochs: 10
+tag: vel2_hid64-64-64
