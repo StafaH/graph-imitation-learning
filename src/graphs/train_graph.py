@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """train.py: Train Graph Neural Network for Imitation Learning.
 
     Arguments:
@@ -8,8 +7,22 @@
         Optional:
 
     Usage: train.py [-h] -d DATA -l LOG -k KEYPOINTS [-c CHANNELS] [-e EPOCHS] [-n NAME] [-b BATCH]
-    Usage:
-    Example:
+    Usage: [-h] [--tag TAG] [--seed SEED] 
+           [-r RESUME]
+           [--data_dir DATA_DIR] 
+           [--log_dir LOG_DIR] 
+           [--eval]
+           [--max_episode_length MAX_EPISODE_LENGTH]
+           [--eval_interval EVAL_INTERVAL]
+           [--eval_batch_size EVAL_BATCH_SIZE]
+           [--checkpoint_dir CHECKPOINT_DIR]
+           [--model_name MODEL_NAME] 
+           [--num_epochs NUM_EPOCHS]
+           [--batch_size BATCH_SIZE]
+           [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
+           
+    Example: ```train_graph2.py --data_dir /data/reach_target/reach_target/ --batch_size 64 --num_epochs 500```
+
 """
 
 # Imports
@@ -24,32 +37,32 @@ from tqdm import tqdm
 import numpy as np
 
 import torch
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
 
-from torch_geometric.data import Data
-from torch_geometric.data import DataLoader
+from torch_geometric.data import Data, DataLoader
 
-from model.GCN import SimpleGCNModel
-from data import ProcessStateToGraphData
-from utils import set_manual_seed, save_checkpoint
-from config import load_default_config
+from config import get_base_parser
+from data import load_npy_to_graph, split_train_test
+from model.GCN import GCNModel
+from utils import set_manual_seed, save_checkpoint, save_config, save_command
+
+# -----------------------------------------------------------------------------------
+#                   Funcs
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+#                   Main
+# -----------------------------------------------------------------------------------
 
 
-def _init_fn(worker_id):
-    np.random.seed(int(53))
-
-
-def main(args):
+def main(config):
     print("----------------------------------------")
     print("Configuring")
     print("----------------------------------------\n")
 
     # Manual seeds for reproducible results
     set_manual_seed(53)
-    config = load_default_config()
     print(config)
-    print(args)
 
     print("----------------------------------------")
     print("Loading Model and Data")
@@ -63,62 +76,35 @@ def main(args):
 
     print('Current device is set to: ', device)
 
-    if(not os.path.exists(config.data_dir)):
+    if (not os.path.exists(config.data_dir)):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = []
-
-    # One-hot encodings
-    target_enc = np.asarray([1, 0, 0])
-    distract_enc = np.asarray([0, 1, 0])
-    gripper_enc = np.asarray([0, 0, 1])
-
-    for i in range(10):
-        for j in range(10):
-            data = ProcessStateToGraphData(f'{config.data_dir}reach/state_data_{i}_{j}.npy')
-
-            for k in range(len(data) - 1):
-                target_node = np.concatenate((data[k][0], target_enc))
-                distract_node = np.concatenate((data[k][1], distract_enc))
-                distract2_node = np.concatenate((data[k][2], distract_enc))
-                gripper_node = np.concatenate((data[k][3], gripper_enc))
-
-                nodes = torch.tensor([target_node, distract_node, distract2_node, gripper_node], dtype=torch.float)
-                edge_index = torch.tensor([[0, 1],
-                                           [1, 0],
-                                           [0, 2],
-                                           [2, 0],
-                                           [0, 3],
-                                           [3, 0],
-                                           [1, 2],
-                                           [2, 1],
-                                           [1, 3],
-                                           [3, 1],
-                                           [2, 3],
-                                           [3, 2]], dtype=torch.long)
-                y = torch.tensor([data[k + 1][3]], dtype=torch.float)
-                graph_data = graph_data = Data(x=nodes, edge_index=edge_index.t().contiguous(), y=y)
-                dataset.append(graph_data)
-
-    #dataset = GraphDataset(config.data_dir, transform=transformer)
-    #print("Images loaded from data directory: ", len(dataset))
+    dataset = load_npy_to_graph(config.data_dir)
+    dataset_train, dataset_test = split_train_test(dataset)
 
     # Load the dataset (num_workers is async, set to 0 if using notebooks)
-    loader = DataLoader(dataset, batch_size=config.batch_size)
-                                         #pin_memory=True, num_workers=4,
-                                         #worker_init_fn=_init_fn)
+    loader = DataLoader(dataset_train, batch_size=config.batch_size)
+    loader_test = DataLoader(dataset_test, batch_size=config.batch_size)
 
     # Build Model
-    model = SimpleGCNModel(6, 3)
+    input_dim = dataset[0].num_node_features
+    output_dim = 7
+    
+    # model = SimpleGCNModel(input_dim, output_dim)
+    model = GCNModel(input_dim,
+                     output_dim,
+                     config.hidden_dims,
+                     act="tanh",
+                     output_act=None)
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), 1e-3)
     start_epoch = 0
 
     # Load a model if resuming training
-    if args.resume != '':
-        checkpoint = torch.load(args.resume)
+    if config.resume != '':
+        checkpoint = torch.load(config.resume)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch']
@@ -127,7 +113,9 @@ def main(args):
 
     # Create a log directory using the current timestamp
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    config.log_dir = os.path.join(config.log_dir, 'transporter' + '_' + current_time)
+    config.log_dir = os.path.join(
+        config.log_dir,
+        config.tag + '_' + "seed{}".format(config.seed) + '_' + current_time)
 
     os.makedirs(config.log_dir, exist_ok=True)
     print('Logs are being written to {}'.format(config.log_dir))
@@ -135,10 +123,8 @@ def main(args):
     summary_writer = SummaryWriter(config.log_dir)
 
     # Dump training information in log folder (for future reference!)
-    with open(config.log_dir + "/info.txt", "w") as text_file:
-        print(f"Data directory: {config.data_dir}", file=text_file)
-        print(f"Epochs: {config.num_epochs}", file=text_file)
-        print(f"Batch Size: {config.batch_size}", file=text_file)
+    save_config(config, config.log_dir)
+    save_command(config.log_dir)
 
     print("----------------------------------------")
     print("Training Transporter Network")
@@ -149,30 +135,53 @@ def main(args):
     pbar.n = start_epoch
     pbar.refresh()
     for epoch in range(start_epoch, config.num_epochs):
+        loss_total = 0.0
+
         for i, data in enumerate(loader):
-            
             data = data.to(device)
             optimizer.zero_grad(set_to_none=True)
-            
+
             out = model(data.x, data.edge_index, data.batch)
             loss = torch.nn.functional.mse_loss(out, data.y)
             loss.backward()
             optimizer.step()
 
+            loss_total += loss.item()
+
+        loss_total /= len(loader)
+
+        # logging
         pbar.update(1)
-        pbar.set_description(f'Epoch {epoch} - Loss - {loss:.5f}')
-
-        save_checkpoint(config.log_dir, config.model_name, {'epoch': epoch,
-                                                            'model_state_dict': model.state_dict(),
-                                                            'optimizer_state_dict': optimizer.state_dict(),
-                                                            'loss': loss})
-
-        summary_writer.add_scalar('loss', loss, epoch)
+        pbar.set_description(f'Epoch {epoch} - Loss - {loss_total:.5f}')
+        summary_writer.add_scalar('loss', loss_total, epoch)
         summary_writer.flush()
+
+        # checkpoint
+        save_checkpoint(
+            config.log_dir, config.model_name, {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss_total
+            })
+
+        # evaluation
+        if epoch > 0 and epoch % config.eval_interval == 0:
+            loss_eval_total = 0.0
+
+            for data in loader_test:
+                data = data.to(device)
+                with torch.no_grad():
+                    out = model(data.x, data.edge_index, data.batch)
+                loss_eval = torch.nn.functional.mse_loss(out, data.y)
+                loss_eval_total += loss_eval.item()
+
+            loss_eval_total /= len(loader_test)
+            summary_writer.add_scalar('loss_eval', loss_eval_total, epoch)
+            summary_writer.flush()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train Graph Neural Network for Imitation Learning')
-    parser.add_argument('-r', '--resume', type=str, default='', help='path to last checkpoint (default = None)')
-    args = parser.parse_args()
-    main(args)
+    parser = get_base_parser()
+    config = parser.parse_args()
+    main(config)
