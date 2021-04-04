@@ -60,6 +60,9 @@ def get_base_parser():
     parser.add_argument("--eval",
                         action='store_true',
                         help="if to train or test")
+    parser.add_argument("--dagger",
+                        action='store_true',
+                        help="if to train with dagger style (data aggregation)")
 
     # evaluation stuff
     parser.add_argument('--max_episode_length', type=int, default=100)
@@ -71,6 +74,9 @@ def get_base_parser():
     parser.add_argument('--checkpoint_dir',
                         type=str,
                         help='folder path to load checkpoint from')
+    parser.add_argument("--render",
+                        action='store_true',
+                        help="if to render for test runs")
 
     # model stuff
     parser.add_argument('--model_name', type=str, default='mlp')
@@ -85,5 +91,6 @@ def get_base_parser():
     # data stuff
     parser.add_argument('--episodes_per_update', type=int, default=10)
     parser.add_argument('--sub_epochs', type=int, default=10)
+    parser.add_argument('--max_dataset_size', type=int, default=int(1e6))
 
     return parser
