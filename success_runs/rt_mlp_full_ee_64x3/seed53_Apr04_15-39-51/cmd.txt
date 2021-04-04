@@ -1,0 +1,1 @@
+src/graphs/reach_target_ee.py --tag full_ee_64x3 --seed 53 --hidden_dims 64 64 64 --data_dir data/reach_target/ --model_name mlp --num_epochs 1000
