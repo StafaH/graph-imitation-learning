@@ -1,0 +1,1 @@
+src/graphs/pick_and_lift_ee.py --tag ee_64x3 --seed 53 --hidden_dims 64 64 64 --data_dir data/pick_and_lift/ --model_name mlp --num_epochs 1000

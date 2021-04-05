@@ -93,6 +93,7 @@ def load_npy_to_graph(data_dir, use_relative_pos=True):
                                       dtype=torch.long)
 
             # Extract labels from future frame
+            #delta = diff_in_pose(state_data[k][3], state_data[k + 1][3])
             y = torch.tensor([state_data[k + 1][1]], dtype=torch.float)
 
             graph_data = Data(x=nodes,
@@ -104,7 +105,7 @@ def load_npy_to_graph(data_dir, use_relative_pos=True):
     return dataset
 
 
-def diff_in_quaternions(pose1, pose2):
+def diff_in_pose(pose1, pose2):
     # TODO: Double check this stuff
     # RLbench Pose = X, Y, Z, QX, QY, QZ, QW
     # Quaternions = QW, QX, QY, QZ
@@ -116,8 +117,16 @@ def diff_in_quaternions(pose1, pose2):
     q2 = Quaternion(q2w, q2x, q2y, q2z)
 
     delta_rot = q2 * q1.inverse
+
+    # Normalize to be unit quaternion
+    delta_rot = delta_rot.unit
     qw, qx, qy, qz = list(delta_rot)
-    return qw, qx, qy, qz
+
+    x, y, z = pose2[:3] - pose1[:3]
+
+    diff = [x, y, z] + [qx, qy, qz, qw]
+
+    return diff
 
 
 def split_train_test(dataset, train_ratio=0.8):
