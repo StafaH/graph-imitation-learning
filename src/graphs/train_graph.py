@@ -21,7 +21,7 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
-    Example: ```train_graph2.py --data_dir /data/reach_target/reach_target/ --batch_size 64 --num_epochs 500```
+    Example: ```train_graph2.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
 
 """
 
@@ -43,7 +43,7 @@ from torch_geometric.data import Data, DataLoader
 
 from config import get_base_parser
 from data import load_npy_to_graph, split_train_test
-from model.GCN import GCNModel
+from model.graph import GCNModel, GATModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 
 # -----------------------------------------------------------------------------------
@@ -91,11 +91,11 @@ def main(config):
     input_dim = dataset[0].num_node_features
     output_dim = 7
     
-    # model = SimpleGCNModel(input_dim, output_dim)
-    model = GCNModel(input_dim,
+    model = GATModel(input_dim,
                      output_dim,
-                     config.hidden_dims,
-                     act="tanh",
+                     [64, 64, 64],
+                     [64, 64, 64],
+                     act="relu",
                      output_act=None)
     model.to(device=device)
 

@@ -23,7 +23,7 @@ GRIPPER_ENC = np.array([0, 0, 1])
 # -----------------------------------------------------------------------------------
 
 
-def load_npy_to_graph(data_dir, use_relative_pos=True):
+def load_npy_to_graph(data_dir, use_relative_position=True):
     """Constructs graph dataset from state data numpy matrices.
     Shape: num_episodes * (4 + number of objects) * 7 (usually pose xyz-quaternion except for
     gripper open/close which is padded with 6 zeroes)
@@ -56,30 +56,34 @@ def load_npy_to_graph(data_dir, use_relative_pos=True):
             # nodes
             NUM_NODES = 4
 
-            if use_relative_pos:
-                # TODO(Mustafa): Currently uses abs rotation, Should we calculate difference in rotation?
-                gripper_position = state_data[k][3][:3]
-                relative_target_position = state_data[k][4][:3] - gripper_position
-                relative_distractor0_position = state_data[k][5][:3] - gripper_position
-                relative_distractor1_position = state_data[k][6][:3] - gripper_position
+            gripper_node = np.concatenate([state_data[k][3], GRIPPER_ENC])
 
-                target_node = np.concatenate(
-                    [relative_target_position, state_data[k][4][3:], TARGET_ENC])
-                distract_node = np.concatenate(
-                    [relative_distractor0_position, state_data[k][5][3:], DISTRACT_ENC])
-                distract2_node = np.concatenate(
-                    [relative_distractor1_position, state_data[k][6][3:], DISTRACT_ENC])
-                gripper_node = np.concatenate(
-                    [state_data[k][3], GRIPPER_ENC])
+            if use_relative_position:
+                target_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][4]),
+                    TARGET_ENC
+                ])
+                distract_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][5]),
+                    DISTRACT_ENC
+                ])
+                distract2_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][6]),
+                    DISTRACT_ENC
+                ])
             else:
-                target_node = np.concatenate(
-                    [state_data[k][4], TARGET_ENC])
-                distract_node = np.concatenate(
-                    [state_data[k][5], DISTRACT_ENC])
-                distract2_node = np.concatenate(
-                    [state_data[k][6], DISTRACT_ENC])
-                gripper_node = np.concatenate(
-                    [state_data[k][3], GRIPPER_ENC])
+                target_node = np.concatenate([
+                    state_data[k][3], state_data[k][4],
+                    TARGET_ENC
+                ])
+                distract_node = np.concatenate([
+                    state_data[k][3], state_data[k][5],
+                    DISTRACT_ENC
+                ])
+                distract2_node = np.concatenate([
+                    state_data[k][3], state_data[k][6],
+                    DISTRACT_ENC
+                ])
 
             nodes = torch.tensor(
                 [target_node, distract_node, distract2_node, gripper_node],
@@ -93,8 +97,8 @@ def load_npy_to_graph(data_dir, use_relative_pos=True):
                                       dtype=torch.long)
 
             # Extract labels from future frame
-            #delta = diff_in_pose(state_data[k][3], state_data[k + 1][3])
-            y = torch.tensor([state_data[k + 1][1]], dtype=torch.float)
+            delta = delta_in_pose(state_data[k][3], state_data[k + 1][3])
+            y = torch.tensor([delta], dtype=torch.float)
 
             graph_data = Data(x=nodes,
                               edge_index=edge_index.t().contiguous(),
@@ -105,7 +109,7 @@ def load_npy_to_graph(data_dir, use_relative_pos=True):
     return dataset
 
 
-def diff_in_pose(pose1, pose2):
+def delta_in_pose(pose1, pose2):
     # TODO: Double check this stuff
     # RLbench Pose = X, Y, Z, QX, QY, QZ, QW
     # Quaternions = QW, QX, QY, QZ
@@ -119,14 +123,14 @@ def diff_in_pose(pose1, pose2):
     delta_rot = q2 * q1.inverse
 
     # Normalize to be unit quaternion
-    delta_rot = delta_rot.unit
+    #delta_rot = delta_rot.unit
     qw, qx, qy, qz = list(delta_rot)
 
     x, y, z = pose2[:3] - pose1[:3]
 
     diff = [x, y, z] + [qx, qy, qz, qw]
 
-    return diff
+    return np.array(diff)
 
 
 def split_train_test(dataset, train_ratio=0.8):
