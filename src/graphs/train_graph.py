@@ -1,13 +1,8 @@
 #!/usr/bin/env python
-"""train.py: Train Graph Neural Network for Imitation Learning.
+"""train_graph.py: Train Graph Neural Network for Imitation Learning.
 
     Arguments:
-        Required:
-
-        Optional:
-
-    Usage: train.py [-h] -d DATA -l LOG -k KEYPOINTS [-c CHANNELS] [-e EPOCHS] [-n NAME] [-b BATCH]
-    Usage: [-h] [--tag TAG] [--seed SEED] 
+           [-h] [--tag TAG] [--seed SEED] 
            [-r RESUME]
            [--data_dir DATA_DIR] 
            [--log_dir LOG_DIR] 
@@ -21,7 +16,11 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
+<<<<<<< HEAD
     Example: ```train_graph2.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
+=======
+    Example: ```train_graph.py --data_dir /data/reach_target/reach_target/ --batch_size 64 --num_epochs 500```
+>>>>>>> af169d51797e027c254995feb6b9534a863dd8be
 
 """
 
