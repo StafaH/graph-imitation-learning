@@ -33,7 +33,7 @@ from rlbench.tasks import ReachTarget
 
 from config import get_base_parser
 from data import delta_in_pose, split_train_test
-from model.graph import GATModel
+from model.graph import GATModel, GCNModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 from utils import pose_quat_to_rpy, pose_rpy_to_quat
 
@@ -48,7 +48,7 @@ class GraphAgent:
         self.input_dim = input_dim
         self.output_dim = output_dim
 
-        self.model = GATModel(input_dim,
+        self.model = GCNModel(input_dim,
                      output_dim,
                      [64, 64, 64],
                      [64, 64, 64],
@@ -174,7 +174,7 @@ def test_policy(config):
     # checkpoint_path = os.path.join(config.checkpoint_dir, [
     #     f for f in os.listdir(config.checkpoint_dir) if '.pth' in f
     # ][0])
-    checkpoint_path = os.path.join(config.checkpoint_dir, "mlp.pth")
+    checkpoint_path = os.path.join(config.checkpoint_dir, "checkpoint_best.pth")
     checkpoint = torch.load(checkpoint_path)
     agent.load_state_dict(checkpoint['model_state_dict'])
 

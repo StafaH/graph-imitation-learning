@@ -16,11 +16,7 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
-<<<<<<< HEAD
     Example: ```train_graph2.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
-=======
-    Example: ```train_graph.py --data_dir /data/reach_target/reach_target/ --batch_size 64 --num_epochs 500```
->>>>>>> af169d51797e027c254995feb6b9534a863dd8be
 
 """
 
@@ -90,7 +86,7 @@ def main(config):
     input_dim = dataset[0].num_node_features
     output_dim = 7
     
-    model = GATModel(input_dim,
+    model = GCNModel(input_dim,
                      output_dim,
                      [64, 64, 64],
                      [64, 64, 64],
@@ -98,7 +94,7 @@ def main(config):
                      output_act=None)
     model.to(device=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), 1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     start_epoch = 0
 
     # Load a model if resuming training
@@ -133,6 +129,8 @@ def main(config):
     pbar = tqdm(total=config.num_epochs)
     pbar.n = start_epoch
     pbar.refresh()
+    loss_eval_best = None
+
     for epoch in range(start_epoch, config.num_epochs):
         loss_total = 0.0
 
@@ -178,6 +176,16 @@ def main(config):
             loss_eval_total /= len(loader_test)
             summary_writer.add_scalar('loss_eval', loss_eval_total, epoch)
             summary_writer.flush()
+
+            if loss_eval_best is None or loss_eval_total < loss_eval_best:
+                loss_eval_best = loss_eval_total
+                save_checkpoint(
+                    config.log_dir, "checkpoint_best", {
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss_total
+                    })
 
 
 if __name__ == '__main__':
