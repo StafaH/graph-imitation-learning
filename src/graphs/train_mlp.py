@@ -1,15 +1,25 @@
 #!/usr/bin/env python
-"""train.py: Train Graph Neural Network for Imitation Learning.
+"""train_mlp.py: Train MLP for Imitation Learning.
+
 
     Arguments:
-        Required:
-
-        Optional:
-
-    Usage: train.py [-h] -d DATA -l LOG -k KEYPOINTS [-c CHANNELS] [-e EPOCHS] [-n NAME] [-b BATCH]
-    Usage:
-    Example:
+       [-h] [--tag TAG] [--seed SEED] 
+       [-r RESUME]
+       [--data_dir DATA_DIR] 
+       [--log_dir LOG_DIR] 
+       [--eval]
+       [--max_episode_length MAX_EPISODE_LENGTH]
+       [--eval_interval EVAL_INTERVAL]
+       [--eval_batch_size EVAL_BATCH_SIZE]
+       [--checkpoint_dir CHECKPOINT_DIR]
+       [--model_name MODEL_NAME] 
+       [--num_epochs NUM_EPOCHS]
+       [--batch_size BATCH_SIZE]
+       [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
+           
+    Example: ```train_mlp.py --data_dir /data/reach_target/reach_target/ --batch_size 64 --num_epochs 500```
 """
+
 import sys
 import os
 import glob

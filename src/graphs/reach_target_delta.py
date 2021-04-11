@@ -22,7 +22,6 @@ import yaml
 from pyquaternion import Quaternion
 from scipy.spatial.transform import Rotation as R
 
-
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -33,12 +32,16 @@ from rlbench.action_modes import ArmActionMode, ActionMode
 from rlbench.observation_config import ObservationConfig
 from rlbench.tasks import ReachTarget
 
+from pyrep.const import RenderMode
+from pyrep.objects.dummy import Dummy
+from pyrep.objects.vision_sensor import VisionSensor
+
 from config import get_base_parser
 from data import split_train_test
 from model.mlp import MLP
 from model.GCN import GCNModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
-from utils import pose_quat_to_rpy, pose_rpy_to_quat
+from utils import pose_quat_to_rpy, pose_rpy_to_quat, save_video
 
 # -----------------------------------------------------------------------------------
 #                   Constants
@@ -53,9 +56,11 @@ INPUT_DIM = 40
 OUTPUT_DIM = 7
 
 TASK_NAME = "rt"
+
 # -----------------------------------------------------------------------------------
 #                   Funcs
-# -----------------------------------------------------------------------------------  
+# -----------------------------------------------------------------------------------
+
 
 # TODO(Mustafa): Abstract out arguments for constructing environment, add to argv?
 def make_env():
@@ -92,7 +97,8 @@ def delta_in_pose(pose1, pose2):
 
     diff = [x, y, z] + [qx, qy, qz, qw]
 
-    return diff
+    return np.array(diff)
+
 
 def obs_to_input(obs, use_relative_position=True):
     """Construct input to mlp from raw rlbench obs."""
@@ -103,23 +109,58 @@ def obs_to_input(obs, use_relative_position=True):
     features.append(gripper_pose)  # (10,)
 
     if use_relative_position:
-        target_position = obs.task_low_dim_state[0][:3] - obs.gripper_pose[:3]
-        distractor0_position = obs.task_low_dim_state[1][:3] - obs.gripper_pose[:3]
-        distractor1_position = obs.task_low_dim_state[2][:3] - obs.gripper_pose[:3]
-        target_pose = np.concatenate([target_position, obs.task_low_dim_state[0][3:], TARGET_ENC])
-        distract_pose = np.concatenate([distractor0_position, obs.task_low_dim_state[1][3:], DISTRACT_ENC])
-        distract2_pose = np.concatenate([distractor1_position, obs.task_low_dim_state[2][3:], DISTRACT_ENC])
+        target_pose = np.concatenate([
+            delta_in_pose(obs.gripper_pose, obs.task_low_dim_state[0]),
+            TARGET_ENC
+        ])
+        distract_pose = np.concatenate([
+            delta_in_pose(obs.gripper_pose, obs.task_low_dim_state[1]),
+            DISTRACT_ENC
+        ])
+        distract2_pose = np.concatenate([
+            delta_in_pose(obs.gripper_pose, obs.task_low_dim_state[2]),
+            DISTRACT_ENC
+        ])
     else:
         target_pose = np.concatenate([obs.task_low_dim_state[0], TARGET_ENC])
-        distract_pose = np.concatenate([obs.task_low_dim_state[1], DISTRACT_ENC])
-        distract2_pose = np.concatenate([obs.task_low_dim_state[2], DISTRACT_ENC])
-    
+        distract_pose = np.concatenate(
+            [obs.task_low_dim_state[1], DISTRACT_ENC])
+        distract2_pose = np.concatenate(
+            [obs.task_low_dim_state[2], DISTRACT_ENC])
+
     features.append(target_pose)  # (10,)
     features.append(distract_pose)  # (10,)
     features.append(distract2_pose)  # (10,)
 
     feature = np.concatenate(features)  # (40,)
     return feature
+
+
+def input_to_graph(feature):
+    """Converts single concatenated feature to graph."""
+    # nodes
+    gripper_node, target_node, distract_node, distract2_node = torch.split(
+        feature, NUM_NODE_FEATURES)
+    nodes = torch.stack(
+        [target_node, distract_node, distract2_node, gripper_node])
+
+    # edges
+    edge_index = torch.tensor(
+        [[i, j] for i in range(NUM_NODES) for j in range(NUM_NODES) if i != j],
+        dtype=torch.long).to(feature.device)
+
+    graph = Data(x=nodes, edge_index=edge_index.t().contiguous())
+    return graph
+
+
+def batch_input_to_graph(features):
+    """Converts input batch to graph batch. NOTE: kinda hacky."""
+    batch_size = len(features)
+    graphs = [input_to_graph(features[i]) for i in range(batch_size)]
+
+    loader = DataLoader(graphs, batch_size=batch_size)
+    batch = next(iter(loader))
+    return batch
 
 
 def load_data(data_dir):
@@ -140,9 +181,9 @@ def load_data(data_dir):
             obs = data._observations[t]
             feature = obs_to_input(obs)
 
-            delta = delta_in_pose(data._observations[t].gripper_pose, data._observations[t + 1].gripper_pose)
-            y = torch.tensor([delta],
-                             dtype=torch.float)
+            delta = delta_in_pose(data._observations[t].gripper_pose,
+                                  data._observations[t + 1].gripper_pose)
+            y = np.asarray(delta)
 
             dataset.append([feature, y])
     return dataset
@@ -210,7 +251,46 @@ class MLPAgent:
         # Normalize to be unit quaternion
         q1 = q1.unit
         qw, qx, qy, qz = list(q1)
-        
+
+        return np.asarray([x, y, z, qx, qy, qz, qw])
+
+
+class GraphAgent(MLPAgent):
+
+    def __init__(self, config, input_dim, output_dim):
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.model = GCNModel(input_dim,
+                              output_dim,
+                              config.hidden_dims,
+                              act="tanh",
+                              output_act=None)
+
+    def output(self, features):
+        graphs = batch_input_to_graph(features)
+        action = self.model(graphs.x, graphs.edge_index, graphs.batch)
+        return action
+
+    def act(self, features):
+        if len(features.shape) == 2:
+            # batching
+            graphs = batch_input_to_graph(features)
+            batch = graphs.batch
+        else:
+            # single
+            graphs = input_to_graph(features)
+            batch = torch.zeros(NUM_NODES).long()
+
+        action = self.model(graphs.x, graphs.edge_index, batch)
+
+        x, y, z, q1x, q1y, q1z, q1w = action[0]
+        q1 = Quaternion(q1w, q1x, q1y, q1z)
+
+        # Normalize to be unit quaternion
+        q1 = q1.unit
+        qw, qx, qy, qz = list(q1)
+
         return np.asarray([x, y, z, qx, qy, qz, qw])
 
 
@@ -218,6 +298,8 @@ def make_agent(config):
     """Constructs agent based on config."""
     if config.model_name == "mlp":
         agent = MLPAgent(config, INPUT_DIM, OUTPUT_DIM)
+    elif config.model_name == "graph":
+        agent = GraphAgent(config, NUM_NODE_FEATURES, OUTPUT_DIM)
     else:
         raise NotImplementedError
     return agent
@@ -377,6 +459,14 @@ def test_policy(config):
 
     task = env.get_task(ReachTarget)
 
+    # setup rendering
+    if config.render:
+        cam_placeholder = Dummy('cam_cinematic_placeholder')
+        gym_cam = VisionSensor.create([640, 360])
+        gym_cam.set_pose(cam_placeholder.get_pose())
+        # self._gym_cam.set_render_mode(RenderMode.OPENGL3_WINDOWED)
+        gym_cam.set_render_mode(RenderMode.OPENGL3)
+
     # make & restore agent
     config_path = os.path.join(config.checkpoint_dir, "config.yaml")
     with open(config_path, "r") as f:
@@ -397,11 +487,12 @@ def test_policy(config):
     total_lengths = []
     total_rewards = []
 
-    for _ in range(config.eval_batch_size):
+    for i in range(config.eval_batch_size):
         descriptions, obs = task.reset()
         done = False
         length = 0
         total_r = 0
+        frames = []
 
         while not done and length < config.max_episode_length:
             feature = obs_to_input(obs)
@@ -412,13 +503,25 @@ def test_policy(config):
             gripper = [1.0]  # Always open
             full_action = np.concatenate([action, gripper], axis=-1)
 
-            obs, reward, done = task.step(full_action)
-            print("step: {}, returns: {}".format(length, total_r))
-            total_r += reward
-            length += 1
+            try:
+                obs, reward, done = task.step(full_action)
+                print("step: {}, returns: {}".format(length, total_r))
+                total_r += reward
+                length += 1
+
+                if config.render:
+                    img = gym_cam.capture_rgb()
+                    frames.append(img)
+            except:
+                break
 
         total_lengths.append(length)
         total_rewards.append(total_r)
+        if config.render:
+            vid_name = os.path.join(config.checkpoint_dir,
+                                    "run_{}.gif".format(i))
+            frames = [f * 255 for f in frames]
+            save_video(vid_name, frames, fps=20)
 
     # log and clean up
     total_lengths = np.asarray(total_lengths)
@@ -443,9 +546,3 @@ if __name__ == '__main__':
         test_policy(config)
     else:
         train(config)
-    # env, task = make_env()
-
-    # demos = task.get_demos(2, live_demos=True)  # -> List[List[Observation]]
-    # import pdb
-    # pdb.set_trace()
-    # print()

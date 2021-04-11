@@ -1,3 +1,4 @@
+import imageio
 import random
 import numpy as np
 import os
@@ -114,3 +115,18 @@ def pose_rpy_to_quat(pose):
     quat = euler_angle_to_quaternion(rpy * np.pi)
     new_pos = np.concatenate([pos, quat])
     return new_pos  # (7,)
+
+
+def save_video(name, frames, fps=20):
+    """Convert list of frames (H,W,C) to video.
+
+    Args:
+        name (str): path name to save the video.
+        farmes (list): frames of the video as list of np arrays.
+        fps (int, optional): frames per second.
+    """
+    assert ".gif" in name or ".mp4" in name, "invalid video name"
+    vid_kwargs = {'fps': fps}
+    h, w, c = frames[0].shape
+    video = np.stack(frames, 0).astype(np.uint8).reshape(-1, h, w, c)
+    imageio.mimsave(name, video, **vid_kwargs)
