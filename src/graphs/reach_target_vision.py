@@ -242,7 +242,7 @@ class ReachTargetVisionDataset(torch.utils.data.Dataset):
         self.image_paths = [path for path, _ in data_list]
         self.labels = [y for _, y in data_list]
         if transform is None:
-            self.transform = transform.ToTensor()
+            self.transform = transforms.ToTensor()
         else:
             self.transform = transform
 
@@ -311,7 +311,7 @@ class CNNAgent:
 
 def make_agent(config):
     """Constructs agent based on config."""
-    if config.model_name == "mlp":
+    if config.model_name == "conv_mlp":
         input_dim = INPUT_DIM
         # input_dim *= getattr(config, "num_stack", 1)
         output_dim = OUTPUT_DIM
