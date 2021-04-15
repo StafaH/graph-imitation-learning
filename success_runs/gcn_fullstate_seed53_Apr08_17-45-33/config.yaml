@@ -1,0 +1,21 @@
+batch_size: 64
+checkpoint_dir: null
+dagger: false
+data_dir: data/reach_target/
+episodes_per_update: 10
+eval: false
+eval_batch_size: 10
+eval_interval: 10
+hidden_dims:
+- 64
+- 64
+log_dir: logs/exp_seed53_Apr08_17-45-33
+max_dataset_size: 1000000
+max_episode_length: 100
+model_name: mlp
+num_epochs: 2000
+render: false
+resume: logs/exp_seed53_Apr08_16-53-36/mlp.pth
+seed: 53
+sub_epochs: 10
+tag: exp
