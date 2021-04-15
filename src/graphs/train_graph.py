@@ -16,7 +16,7 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
-    Example: ```python src/graphs/train_graph.py --data_dir data/reach_target/ --model_name graph --batch_size 64 --num_epochs 1```
+    Example GCN State: ```python src/graphs/train_graph.py --data_dir data/reach_target/ --network gcn_state --model_name graph --batch_size 256 --num_epochs 1```
 
 """
 
@@ -153,7 +153,7 @@ def main(config):
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
     config.log_dir = os.path.join(
         config.log_dir,
-        config.tag + '_' + "seed{}".format(config.seed) + '_' + current_time)
+        config.network + '_' + "seed{}".format(config.seed) + '_' + current_time)
 
     os.makedirs(config.log_dir, exist_ok=True)
     print('Logs are being written to {}'.format(config.log_dir))
