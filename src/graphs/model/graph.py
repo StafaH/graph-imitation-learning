@@ -4,6 +4,9 @@ from torch_geometric.nn import GCNConv, GATConv, global_mean_pool, global_max_po
 import torch.nn.functional as F
 
 from model.model_utils import get_activation, init_
+sys.path.append("..")
+from transporter.model.transporter import FeatureExtractor, KeyNet, RefineNet, Transporter, gaussian_map
+from transporter.model.model_utils import spatial_softmax
 
 # -----------------------------------------------------------------------------------
 #                   Graph Networks
@@ -94,5 +97,21 @@ class GCNModel(nn.Module):
         
         # Final Layer
         out = self.final_layer(out)
+
+        return out
+
+class GCNTransporterModel(nn.Module):
+    """Graph Convolutional Nework with Transporter Keypoint + Feature embedding"""
+
+    def __init__(self, gcn_model, transporter_model):
+        super(GCNTransporterModel, self).__init__()
+        
+        self.gcn_model = gcn_model
+        self.transporter_model = transporter_model
+
+    def forward(self, x, edge_index, batch):
+        out = x
+        
+
 
         return out

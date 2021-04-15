@@ -16,7 +16,7 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
-    Example: ```train_graph2.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
+    Example: ```python src/graphs/train_graph.py --data_dir data/reach_target/ --model_name graph --batch_size 64 --num_epochs 1```
 
 """
 
@@ -36,7 +36,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torch_geometric.data import Data, DataLoader
 
-from config import get_base_parser
+from config import get_graph_parser
 from data import load_npy_to_graph, split_train_test
 from model.graph import GCNModel, GATModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
@@ -44,6 +44,53 @@ from utils import set_manual_seed, save_checkpoint, save_config, save_command
 # -----------------------------------------------------------------------------------
 #                   Funcs
 # -----------------------------------------------------------------------------------
+
+
+def load_dataset(network_type, data_dir):
+    dataset = None
+    if network_type == 'gcn_state' or network_type == 'gat_state':
+        dataset = load_npy_to_graph(data_dir)
+    elif network_type == 'gcn_vision' or network_type == 'gat_vision':
+        dataset = None
+    
+    return dataset
+
+
+def get_action_dim(action_type):
+    action_dim = 0
+    if action_type == 'delta_nogripper' or action_type == 'joint_velocity_nogripper':
+        action_dim = 7
+    elif action_type == 'delta_withgripper' or action_type == 'joint_velocity_withgripper':
+        action_dim = 8
+    return action_dim
+
+
+def get_network(config, input_dim, output_dim):
+    model = None
+    if config.network == 'gcn_state':
+        model = GCNModel(input_dim,
+                     output_dim,
+                     config.graph_hidden_dims,
+                     config.mlp_hidden_dims,
+                     act="relu",
+                     output_act=None)
+
+    elif config.network == 'gat_state':
+        model = GCNModel(input_dim,
+                     output_dim,
+                     config.graph_hidden_dims,
+                     config.mlp_hidden_dims,
+                     act="relu",
+                     output_act=None)
+    
+    elif config.network == 'gcn_vision':
+        model = None
+    
+    elif config.network == 'gat_vision':
+        model = None
+
+    return model
+
 
 # -----------------------------------------------------------------------------------
 #                   Main
@@ -56,7 +103,7 @@ def main(config):
     print("----------------------------------------\n")
 
     # Manual seeds for reproducible results
-    set_manual_seed(53)
+    set_manual_seed(config.seed)
     print(config)
 
     print("----------------------------------------")
@@ -75,7 +122,8 @@ def main(config):
         print('The data directory does not exist:', config.data_dir)
         return
 
-    dataset = load_npy_to_graph(config.data_dir)
+    dataset = load_dataset(config.network, config.data_dir)
+    #dataset = load_npy_to_graph(config.data_dir)
     dataset_train, dataset_test = split_train_test(dataset)
 
     # Load the dataset (num_workers is async, set to 0 if using notebooks)
@@ -84,14 +132,9 @@ def main(config):
 
     # Build Model
     input_dim = dataset[0].num_node_features
-    output_dim = 7
+    output_dim = get_action_dim(config.action)
     
-    model = GCNModel(input_dim,
-                     output_dim,
-                     [64, 64, 64],
-                     [64, 64, 64],
-                     act="relu",
-                     output_act=None)
+    model = get_network(config, input_dim, output_dim)
     model.to(device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
@@ -122,7 +165,7 @@ def main(config):
     save_command(config.log_dir)
 
     print("----------------------------------------")
-    print("Training Transporter Network")
+    print("Training Network")
     print("----------------------------------------\n")
 
     model.train()
@@ -189,6 +232,6 @@ def main(config):
 
 
 if __name__ == '__main__':
-    parser = get_base_parser()
+    parser = get_graph_parser()
     config = parser.parse_args()
     main(config)

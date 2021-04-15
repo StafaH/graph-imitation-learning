@@ -2,40 +2,6 @@
 import argparse
 
 
-class Config(dict):
-
-    def __getattr__(self, key):
-        try:
-            return self[key]
-        except KeyError as k:
-            raise AttributeError(k)
-
-    def __setattr__(self, key, value):
-        self[key] = value
-
-    def __delattr__(self, key):
-        try:
-            del self[key]
-        except KeyError as k:
-            raise AttributeError(k)
-
-    def __repr__(self):
-        return '<Config ' + dict.__repr__(self) + '>'
-
-
-def load_default_config():
-
-    config = Config({})
-    # config.data_dir = 'C:/code/graph-imitation-learning/data/'
-    config.data_dir = "./data/"
-    config.log_dir = 'logs/'
-    config.num_epochs = 500
-    config.model_name = 'graph_model'
-    config.batch_size = 64
-
-    return config
-
-
 def get_base_parser():
     """To be augmented with algo-specific arguments."""
     parser = argparse.ArgumentParser(
@@ -93,4 +59,34 @@ def get_base_parser():
     parser.add_argument('--sub_epochs', type=int, default=10)
     parser.add_argument('--max_dataset_size', type=int, default=int(1e6))
 
+    parser.add_argument('--action',
+                        choices=['delta_nogripper, delta_withgripper', 'joint_velocity_nogripper', 'joint_velocity_withgripper'],
+                        default='delta_nogripper',
+                        help="The type of action the robot will use")
+
     return parser
+
+def get_graph_parser():
+    """ Parser with config variables specific to graph networks """
+    
+    parser = get_base_parser()
+
+    parser.add_argument('--network',
+                        choices=['gcn_state', 'gat_state', 'gcn_vision', 'gat_vision'],
+                        required=True,
+                        help="Network architecture to use: gcn_state, gat_state, gcn_vision, gat_vision")
+
+    parser.add_argument("--graph_hidden_dims",
+                        nargs='+',
+                        type=int,
+                        default=[64, 64, 64],
+                        help="graph hidden embedding dimensions")
+    
+    parser.add_argument("--mlp_hidden_dims",
+                        nargs='+',
+                        type=int,
+                        default=[64, 64, 64],
+                        help="mlp hidden embedding dimensions")
+
+    return parser
+
