@@ -161,7 +161,7 @@ def main(args):
         summary_writer.add_scalar('reconstruction_loss', loss, epoch)
 
         # Due to large file size of image grids, only save images every 100 epochs
-        if epoch % 100 == 0:
+        if epoch % 1 == 0:
             reconst_grid = torchvision.utils.make_grid(reconstruction)
             source_grid = torchvision.utils.make_grid(source)
             target_grid = torchvision.utils.make_grid(target)
