@@ -1,37 +1,40 @@
 import torch
 from torch import nn
-from utils import spatial_softmax
+from model.model_utils import spatial_softmax
+#import pytorch_lightning as pl
 
 
-class Block(nn.Module):
+class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=(3, 3), stride=1,
                  padding=1):
-        super(Block, self).__init__()
+        super(ConvBlock, self).__init__()
         self.conv = nn.Conv2d(
-            in_channels, out_channels, 
-            kernel_size=kernel_size, padding=padding, stride=stride)
+            in_channels, out_channels,
+            kernel_size=kernel_size, padding=padding, stride=stride, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
+        self.lrelu = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
+        # return self.lrelu(x)
         return torch.relu(x)
 
 
-class FeatureEncoder(nn.Module):
-    """Phi"""
+class FeatureExtractor(nn.Module):
+    """Feature Extractor Phi"""
 
     def __init__(self, in_channels=3):
-        super(FeatureEncoder, self).__init__()
+        super(FeatureExtractor, self).__init__()
         self.net = nn.Sequential(
-            Block(in_channels, 32, kernel_size=(7, 7), stride=1, padding=3),  # 1
-            Block(32, 32, kernel_size=(3, 3), stride=1),  # 2
-            Block(32, 64, kernel_size=(3, 3), stride=2),  # 3
-            Block(64, 64, kernel_size=(3, 3), stride=1),  # 4
-            Block(64, 128, kernel_size=(3, 3), stride=2),  # 5
-            Block(128, 128, kernel_size=(3, 3), stride=1),  # 6        
+            # Input 3 x 128 x 128                                                 Outputs
+            ConvBlock(in_channels, 32, kernel_size=(7, 7), stride=1, padding=3),  # 1 32 x 128 x 128
+            ConvBlock(32, 32, kernel_size=(3, 3), stride=1),                      # 2 32 x 128 x 128
+            ConvBlock(32, 64, kernel_size=(3, 3), stride=2),                      # 3 64 x 64 x 64
+            ConvBlock(64, 64, kernel_size=(3, 3), stride=1),                      # 4 64 x 64 x 64
+            ConvBlock(64, 128, kernel_size=(3, 3), stride=2),                     # 5 128 x 32 x 32
+            ConvBlock(128, 128, kernel_size=(3, 3), stride=1),                    # 6 128 x 32 x 32
         )
-
 
     def forward(self, x):
         """
@@ -45,29 +48,28 @@ class FeatureEncoder(nn.Module):
         return self.net(x)
 
 
-class PoseRegressor(nn.Module):
-    """Pose regressor"""
-
-    # https://papers.nips.cc/paper/7657-unsupervised-learning-of-object-landmarks-through-conditional-image-generation.pdf
+class KeyNet(nn.Module):
+    """KeyNet Psi"""
 
     def __init__(self, in_channels=3, k=1):
-        super(PoseRegressor, self).__init__()
+        super(KeyNet, self).__init__()
         self.net = nn.Sequential(
-            Block(in_channels, 32, kernel_size=(7, 7), stride=1, padding=3), # 1
-            Block(32, 32, kernel_size=(3, 3), stride=1),  # 2
-            Block(32, 64, kernel_size=(3, 3), stride=2),  # 3
-            Block(64, 64, kernel_size=(3, 3), stride=1),  # 4
-            Block(64, 128, kernel_size=(3, 3), stride=2), # 5
-            Block(128, 128, kernel_size=(3, 3), stride=1),  # 6        
+            # Input: 3 x 128 x 128                                                  Outputs
+            ConvBlock(in_channels, 32, kernel_size=(7, 7), stride=1, padding=3),    # 1: 32 x 128 x 128
+            ConvBlock(32, 32, kernel_size=(3, 3), stride=1),                        # 2: 32 x 128 x 128
+            ConvBlock(32, 64, kernel_size=(3, 3), stride=2),                        # 3: 64 x 64 x 64
+            ConvBlock(64, 64, kernel_size=(3, 3), stride=1),                        # 4: 64 x 64 x 64
+            ConvBlock(64, 128, kernel_size=(3, 3), stride=2),                       # 5: 128 x 32 x 32
+            ConvBlock(128, 128, kernel_size=(3, 3), stride=1),                      # 6: 128 x 32 x 32
         )
-        self.regressor = nn.Conv2d(128, k, kernel_size=(1, 1))
+        self.regressor = nn.Conv2d(128, k, kernel_size=(1, 1))                      # 7: 5 x 32 x 32
 
     def forward(self, x):
         """
         Args
         ====
         x: (N, C, H, W) tensor.
-        
+
         Returns
         =======
         y: (N, k, H', W') tensor.
@@ -82,14 +84,14 @@ class RefineNet(nn.Module):
     def __init__(self, num_channels):
         super(RefineNet, self).__init__()
         self.net = nn.Sequential(
-            Block(128, 128, kernel_size=(3, 3), stride=1), # 6 
-            Block(128, 64, kernel_size=(3, 3), stride=1), # 5
-            nn.UpsamplingBilinear2d(scale_factor=2),
-            Block(64, 64, kernel_size=(3, 3), stride=1),  # 4
-            Block(64, 32, kernel_size=(3, 3), stride=1),  # 3
-            nn.UpsamplingBilinear2d(scale_factor=2),
-            Block(32, 32, kernel_size=(3, 3), stride=1),  # 2
-            Block(32, num_channels, kernel_size=(7, 7), stride=1, padding=3), # 1
+            ConvBlock(128, 128, kernel_size=(3, 3), stride=1),                      # 1: 128 x 32 x 32
+            ConvBlock(128, 64, kernel_size=(3, 3), stride=1),                       # 2: 64 x 32 x 32
+            nn.UpsamplingBilinear2d(scale_factor=2),                                # 3: 64 x 64 x 64
+            ConvBlock(64, 64, kernel_size=(3, 3), stride=1),                        # 4: 64 x 64 x 64
+            ConvBlock(64, 32, kernel_size=(3, 3), stride=1),                        # 5: 32 x 64 x 64
+            nn.UpsamplingBilinear2d(scale_factor=2),                                # 6: 32 x 128 x 128
+            ConvBlock(32, 32, kernel_size=(3, 3), stride=1),                        # 2: 32 x 128 x 128
+            ConvBlock(32, num_channels, kernel_size=(7, 7), stride=1, padding=3),   # 2: 3 x 128 x 128
         )
 
     def forward(self, x):
@@ -107,7 +109,7 @@ def compute_keypoint_location_mean(features):
     u_row = S_row.mul(torch.linspace(-1, 1, S_row.size(-1), dtype=features.dtype, device=features.device)).sum(-1)
     # N, K
     u_col = S_col.mul(torch.linspace(-1, 1, S_col.size(-1), dtype=features.dtype, device=features.device)).sum(-1)
-    return torch.stack((u_row, u_col), -1) # N, K, 2
+    return torch.stack((u_row, u_col), -1)  # N, K, 2
 
 
 def gaussian_map(features, std=0.2):
@@ -151,22 +153,22 @@ def transport(source_keypoints, target_keypoints, source_features,
 
 class Transporter(nn.Module):
 
-    def __init__(self, feature_encoder, point_net, refine_net, std=0.1):
+    def __init__(self, feature_extractor, key_net, refine_net, std=0.1):
         super(Transporter, self).__init__()
-        self.feature_encoder = feature_encoder
-        self.point_net = point_net
+        self.feature_extractor = feature_extractor
+        self.key_net = key_net
         self.refine_net = refine_net
         self.std = std
 
     def forward(self, source_images, target_images):
-        source_features = self.feature_encoder(source_images)
-        target_features = self.feature_encoder(target_images)
+        source_features = self.feature_extractor(source_images)
+        target_features = self.feature_extractor(target_images)
 
         source_keypoints = gaussian_map(
-            spatial_softmax(self.point_net(source_images)), std=self.std)
+            spatial_softmax(self.key_net(source_images)), std=self.std)
 
         target_keypoints = gaussian_map(
-            spatial_softmax(self.point_net(target_images)), std=self.std)
+            spatial_softmax(self.key_net(target_images)), std=self.std)
 
         transported_features = transport(source_keypoints.detach(),
                                          target_keypoints,
@@ -177,3 +179,47 @@ class Transporter(nn.Module):
 
         reconstruction = self.refine_net(transported_features)
         return reconstruction
+
+
+# Special Class for PyTorch Lightning Cluster Training
+# class LitTransporter(pl.LightningModule):
+
+#     def __init__(self, num_channels, num_keypoints, std=0.1):
+#         super().__init__()
+#         self.feature_extractor = FeatureExtractor(num_channels)
+#         self.key_net = KeyNet(num_channels, num_keypoints)
+#         self.refine_net = RefineNet(num_channels)
+#         self.std = std
+
+#     def forward(self, source_images, target_images):
+#         source_features = self.feature_extractor(source_images)
+#         target_features = self.feature_extractor(target_images)
+
+#         source_keypoints = gaussian_map(
+#             spatial_softmax(self.key_net(source_images)), std=self.std)
+
+#         target_keypoints = gaussian_map(
+#             spatial_softmax(self.key_net(target_images)), std=self.std)
+
+#         transported_features = transport(source_keypoints.detach(),
+#                                          target_keypoints,
+#                                          source_features.detach(),
+#                                          target_features)
+
+#         assert transported_features.shape == target_features.shape
+
+#         reconstruction = self.refine_net(transported_features)
+#         return reconstruction
+
+#     def training_step(self, batch, batch_idx):
+#         source, target = batch
+#         reconstruction = self(source, target)
+#         loss = torch.nn.functional.mse_loss(reconstruction, target)
+#         self.log('train_loss', loss, on_epoch=True)
+#         return loss
+
+#     def configure_optimizers(self):
+#         # self.hparams available because we called self.save_hyperparameters()
+#         optimizer = torch.optim.Adam(self.parameters(), 1e-3)
+#         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, int(25000), gamma=0.95)
+#         return [optimizer], [scheduler]
