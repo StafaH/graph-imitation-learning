@@ -23,11 +23,11 @@ class Config(dict):
 def load_default_config():
 
     config = Config({})
-    config.data_dir = 'C:/code/graph-imitation-learning/data/reach_target/'
+    config.data_dir = 'C:/code/graph-imitation-learning/data/reach_target/reach_target_simple/'
     config.log_dir = 'logs/'
     config.num_keypoints = 4
     config.num_channels = 3
-    config.num_epochs = 100
+    config.num_epochs = 300
     config.model_name = 'transporter_model'
     config.batch_size = 128
 

@@ -1,0 +1,1 @@
+src/graphs/train_graph.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 2000 -r logs/exp_seed53_Apr08_16-53-36/mlp.pth

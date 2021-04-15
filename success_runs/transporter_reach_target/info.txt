@@ -1,0 +1,5 @@
+Data directory: C:/code/graph-imitation-learning/data/reach_target/reach_target_simple/
+Channels: 3
+Keypoints: 4
+Epochs: 300
+Batch Size: 128
