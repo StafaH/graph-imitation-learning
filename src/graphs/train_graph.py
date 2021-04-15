@@ -16,7 +16,7 @@
            [--batch_size BATCH_SIZE]
            [--hidden_dims HIDDEN_DIMS [HIDDEN_DIMS ...] ]
            
-    Example: ```train_graph2.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
+    Example: ```train_graph.py --data_dir data/reach_target/ --batch_size 64 --num_epochs 500```
 
 """
 
