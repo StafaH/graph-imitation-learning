@@ -125,6 +125,8 @@ def plot_with_seeds(legend_dir_specs,
     plt.ylabel(ylabel)
     # # trianign loss for rt-mlp
     # plt.ylim(ymax=0.1e-5, ymin=-0.1e-6)
+    # # trianign loss for pl-mlp
+    # plt.ylim(ymax=0.001)
     plt.legend()
 
     plt.tight_layout()
@@ -175,7 +177,7 @@ if __name__ == "__main__":
             #     ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
             "mlp": [
                 "logs/pl_mlp_fix_64x3_lr/seed6_Apr14_22-15-15",
-                "logs/pl_mlp_fix_64x3_lr/seed1_Apr16_00-13-26",
+                "logs/pl_mlp_fix_64x3_lr/seed1_Apr16_00-39-22",
                 "logs/pl_mlp_fix_64x3_lr/seed9_Apr16_00-15-24",
                 "logs/pl_mlp_fix_64x3_lr/seed3_Apr16_00-22-39"
             ],
