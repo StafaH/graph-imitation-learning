@@ -37,7 +37,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import Data, DataLoader
 
 from config import get_graph_parser
-from data import load_npy_to_graph, split_train_test
+from data import load_npy_to_graph, load_npy_to_graph_pl, split_train_test
 from model.graph import GCNModel, GATModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 

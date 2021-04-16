@@ -204,7 +204,7 @@ def test_policy(config):
     # checkpoint_path = os.path.join(config.checkpoint_dir, [
     #     f for f in os.listdir(config.checkpoint_dir) if '.pth' in f
     # ][0])
-    checkpoint_path = os.path.join(config.checkpoint_dir, "checkpoint_best.pth")
+    checkpoint_path = os.path.join(config.checkpoint_dir, "graph_few_shot_50.pth")
     checkpoint = torch.load(checkpoint_path)
     agent.load_state_dict(checkpoint['model_state_dict'])
 

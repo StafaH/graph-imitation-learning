@@ -22,6 +22,103 @@ GRIPPER_ENC = np.array([0, 0, 1])
 #                   Funcs
 # -----------------------------------------------------------------------------------
 
+def load_npy_to_graph_pl(data_dir, use_relative_position=True):
+    """Constructs graph dataset from state data numpy matrices.
+    Shape: num_episodes * (4 + number of objects) * 7 (usually pose xyz-quaternion except for
+    gripper open/close which is padded with 6 zeroes)
+
+    Indices: 
+    0 - joint positions
+    1 - joint velocities
+    2 - gripper open
+    3 - gripper pose
+
+    4 - target pose
+    5 - distractor pose
+    6 - distractor pose
+    """
+    # TODO: Add gripper open/close into embedding
+    # TODO: Deduce number of nodes .npy file
+
+    # get all episodes
+    pattern = os.path.join(data_dir, "*/*/*/*.npy")
+    episode_files = glob.glob(pattern)
+
+    print(f'Found {len(episode_files)} numpy state data files to load.')
+    # construct dataset
+    dataset = []
+
+    for f_path in episode_files:
+        state_data = np.load(f_path)
+
+        for k in range(len(state_data) - 1):
+            # nodes
+            NUM_NODES = 5
+
+            gripper_node = np.concatenate([state_data[k][3], GRIPPER_ENC])
+
+            if use_relative_position:
+                target_block_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][4]),
+                    TARGET_ENC
+                ])
+                distract_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][5]),
+                    DISTRACT_ENC
+                ])
+                distract2_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[k][6]),
+                    DISTRACT_ENC
+                ])
+                target_node = np.concatenate([
+                    delta_in_pose(state_data[k][3], state_data[len(state_data) - 1][3]),
+                    TARGET_ENC
+                ])
+            else:
+                target_block_node = np.concatenate([
+                    state_data[k][4],
+                    TARGET_ENC
+                ])
+                distract_node = np.concatenate([
+                    state_data[k][5],
+                    DISTRACT_ENC
+                ])
+                distract2_node = np.concatenate([
+                    state_data[k][6],
+                    DISTRACT_ENC
+                ])
+                target_node = np.concatenate([
+                    state_data[len(state_data)][3],
+                    TARGET_ENC
+                ])
+
+            nodes = torch.tensor(
+                [target_block_node, distract_node, distract2_node, target_node, gripper_node],
+                dtype=torch.float)
+
+            # Build edge relationships (Fully Connected)
+            edge_index = torch.tensor([[i, j]
+                                       for i in range(NUM_NODES)
+                                       for j in range(NUM_NODES)
+                                       if i != j],
+                                      dtype=torch.long)
+
+            # Extract labels from future frame
+            delta = delta_in_pose(state_data[k][3], state_data[k + 1][3])
+            final_action = np.concatenate([
+                    delta,
+                    [state_data[k + 1][2][0]] # gripper
+                ])
+            y = torch.tensor([final_action], dtype=torch.float)
+
+            graph_data = Data(x=nodes,
+                              edge_index=edge_index.t().contiguous(),
+                              y=y)
+            dataset.append(graph_data)
+
+    print(f'Total of {len(dataset)} graphs loaded')
+    return dataset
+
 
 def load_npy_to_graph(data_dir, use_relative_position=True):
     """Constructs graph dataset from state data numpy matrices.
