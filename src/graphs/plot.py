@@ -123,7 +123,7 @@ def plot_with_seeds(legend_dir_specs,
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    # # trianign loss
+    # # trianign loss for rt-mlp
     # plt.ylim(ymax=0.1e-5, ymin=-0.1e-6)
     plt.legend()
 
@@ -147,38 +147,48 @@ if __name__ == "__main__":
 
     # plot_with_seeds(
     #     {
-    #         "gnn":
-    #             ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
-    #         "mlp":
-    #             ["logs/rt_mlp/seed0", "logs/rt_mlp/seed1", "logs/rt_mlp/seed2"],
+    #         # "gnn":
+    #         #     ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
+    #         "mlp": [
+    #             "logs/rt_mlp_fix_64x3_lr/seed6_Apr14_22-18-52",
+    #             "logs/rt_mlp_fix_64x3_lr/seed1_Apr15_15-23-38",
+    #             "logs/rt_mlp_fix_64x3_lr/seed9_Apr15_15-43-02",
+    #             "logs/rt_mlp_fix_64x3_lr/seed3_Apr15_16-39-38"
+    #         ],
     #     },
-    #     out_path="temp.jpg",
+    #     out_path="rt_mlp_loss.jpg",
     #     scalar_name="loss",
-    #     title="Traing Curves",
+    #     title="Training Loss",
     #     xlabel="Epochs",
     #     ylabel="Loss",
     #     window=10)
+    # # out_path="rt_mlp_reward.jpg",
+    # # scalar_name="loss_eval/total_rewards",
+    # # title="Average Reward",
+    # # xlabel="Epochs",
+    # # ylabel="Reward",
+    # # window=10)
 
     plot_with_seeds(
         {
             # "gnn":
             #     ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
             "mlp": [
-                "logs/rt_mlp_fix_64x3_lr/seed6_Apr14_22-18-52",
-                "logs/rt_mlp_fix_64x3_lr/seed1_Apr15_15-23-38",
-                "logs/rt_mlp_fix_64x3_lr/seed9_Apr15_15-43-02",
-                "logs/rt_mlp_fix_64x3_lr/seed3_Apr15_16-39-38"
+                "logs/pl_mlp_fix_64x3_lr/seed6_Apr14_22-15-15",
+                "logs/pl_mlp_fix_64x3_lr/seed1_Apr16_00-13-26",
+                "logs/pl_mlp_fix_64x3_lr/seed9_Apr16_00-15-24",
+                "logs/pl_mlp_fix_64x3_lr/seed3_Apr16_00-22-39"
             ],
         },
-        out_path="rt_mlp_loss.jpg",
-        scalar_name="loss",
-        title="Training Loss",
+        # out_path="pl_mlp_loss.jpg",
+        # scalar_name="loss",
+        # title="Training Loss",
+        # xlabel="Epochs",
+        # ylabel="Loss",
+        # window=10)
+        out_path="pl_mlp_reward.jpg",
+        scalar_name="loss_eval/total_rewards",
+        title="Average Reward",
         xlabel="Epochs",
-        ylabel="Loss",
+        ylabel="Reward",
         window=10)
-    # out_path="rt_mlp_reward.jpg",
-    # scalar_name="loss_eval/total_rewards",
-    # title="Average Reward",
-    # xlabel="Epochs",
-    # ylabel="Reward",
-    # window=10)

@@ -22,6 +22,7 @@ class MLP(nn.Module):
                  act="relu",
                  output_act=None,
                  init_weights=False,
+                 use_dropout=False,
                  **kwargs):
         """ multi-layer perception / fully-connected network
 
@@ -43,9 +44,15 @@ class MLP(nn.Module):
         self.act = get_activation(act)
         self.output_act = get_activation(output_act)
 
+        self.use_dropout = use_dropout
+
     def forward(self, x):
         out = x
         for fc in self.fcs[:-1]:
             out = self.act(fc(out))
+
+        if self.use_dropout:
+            out = F.dropout(out)
+
         out = self.output_act(self.fcs[-1](out))
         return out
