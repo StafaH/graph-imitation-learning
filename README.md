@@ -67,7 +67,7 @@ python src/graphs/pick_and_lift_mlp.py --data_dir data/pick_and_lift  --model_na
 To generate evaluation rollouts for a given checkpoint, for example, **rt_mlp_64x3_lr/seed6_Apr15_14-04-30**, use
 
 ```bash
-python src/graphs/reach_target_mlp.py --eval --eval_batch_size 10 --max_episode_length 250 --checkpoint_dir logs/rt_mlp_64x3_lr/seed6_Apr15_14-04-30/ --seed 66 --render
+python src/graphs/reach_target_mlp.py --eval --eval_batch_size 10 --max_episode_length 250 --checkpoint_dir logs/rt_mlp_64x3_lr/seed6_Apr15_14-04-30/ --render
 ```
 
 ## Visualization
