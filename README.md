@@ -2,6 +2,8 @@
 
 ## Graph Imitation Learning
 
+The key codebase is in **src/graphs**, a list of available arguments can be found in **src/graphs/config.py**.
+
 ## Installation
 
 We recommend using Anaconda to install all relevant packages:
