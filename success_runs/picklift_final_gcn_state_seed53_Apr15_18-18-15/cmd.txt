@@ -1,0 +1,1 @@
+src/graphs/train_graph.py --data_dir data/pick_and_lift/ --network gcn_state --model_name graph --batch_size 256 --num_epochs 2000

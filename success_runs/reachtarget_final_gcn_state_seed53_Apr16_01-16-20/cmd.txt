@@ -1,0 +1,1 @@
+src/graphs/train_graph.py --data_dir data/reach_target/ --model_name graphs_veronica --num_epochs 1000 --network gcn_state -r logs/gcn_state_seed53_Apr15_22-53-25/graphs_veronica.pth

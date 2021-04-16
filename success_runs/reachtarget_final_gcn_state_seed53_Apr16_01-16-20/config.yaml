@@ -1,0 +1,31 @@
+action: delta_nogripper
+batch_size: 64
+checkpoint_dir: null
+dagger: false
+data_dir: data/reach_target/
+episodes_per_update: 10
+eval: false
+eval_batch_size: 10
+eval_interval: 10
+graph_hidden_dims:
+- 64
+- 64
+- 64
+hidden_dims:
+- 64
+- 64
+log_dir: logs/gcn_state_seed53_Apr16_01-16-20
+max_dataset_size: 1000000
+max_episode_length: 100
+mlp_hidden_dims:
+- 64
+- 64
+- 64
+model_name: graphs_veronica
+network: gcn_state
+num_epochs: 1000
+render: false
+resume: logs/gcn_state_seed53_Apr15_22-53-25/graphs_veronica.pth
+seed: 53
+sub_epochs: 10
+tag: exp
