@@ -3,7 +3,7 @@
 
 Examples 
 
-    $ python src/graphs/eval.py --eval --eval_batch_size 10 --max_episode_length 100 --checkpoint_dir logs/exp_seed53_Apr08_13-06-18 --seed 53
+    $ python src/graphs/eval.py --eval --eval_batch_size 10 --max_episode_length 100 --checkpoint_dir logs/gcn_state_seed53_Apr15_16-34-34 --seed 53
 
 """
 
@@ -29,7 +29,7 @@ from torch_geometric.data import Data, DataLoader
 from rlbench.environment import Environment
 from rlbench.action_modes import ArmActionMode, ActionMode
 from rlbench.observation_config import ObservationConfig
-from rlbench.tasks import ReachTarget
+from rlbench.tasks import ReachTarget, PickAndLift
 
 from config import get_base_parser
 from data import delta_in_pose, split_train_test
@@ -42,18 +42,61 @@ DISTRACT_ENC = np.array([0, 1, 0])
 GRIPPER_ENC = np.array([0, 0, 1])
 
 
-class GraphAgent:
+def make_agent(config):
+    """Constructs agent based on config."""
+    input_dim = 10
+    action_dim = get_action_dim(config.action)
+    model = get_network(config, input_dim, action_dim)
+    #TODO(Mustafa): Use CUDA device?
 
-    def __init__(self, config, input_dim, output_dim):
-        self.input_dim = input_dim
-        self.output_dim = output_dim
+    if config.network == "gcn_state":
+        agent = GraphAgent(model)
+    else:
+        raise NotImplementedError
+    
+    return agent
 
-        self.model = GCNModel(input_dim,
+
+def get_action_dim(action_type):
+    action_dim = 0
+    if action_type == 'delta_nogripper' or action_type == 'joint_velocity_nogripper':
+        action_dim = 7
+    elif action_type == 'delta_withgripper' or action_type == 'joint_velocity_withgripper':
+        action_dim = 8
+    return action_dim
+
+
+def get_network(config, input_dim, output_dim):
+    model = None
+    if config.network == 'gcn_state':
+        model = GCNModel(input_dim,
                      output_dim,
-                     [64, 64, 64],
-                     [64, 64, 64],
+                     config.graph_hidden_dims,
+                     config.mlp_hidden_dims,
                      act="relu",
                      output_act=None)
+
+    elif config.network == 'gat_state':
+        model = GCNModel(input_dim,
+                     output_dim,
+                     config.graph_hidden_dims,
+                     config.mlp_hidden_dims,
+                     act="relu",
+                     output_act=None)
+    
+    elif config.network == 'gcn_vision':
+        model = None
+    
+    elif config.network == 'gat_vision':
+        model = None
+
+    return model
+
+
+class GraphAgent:
+
+    def __init__(self, model):
+        self.model = model
 
     def to(self, device):
         self.model.to(device)
@@ -69,10 +112,6 @@ class GraphAgent:
 
     def load_state_dict(self, state_dict):
         self.model.load_state_dict(state_dict)
-
-    def output(self, features):
-        action = self.model(features)
-        return action
 
     def act(self, obs, use_relative_position=True):
         dataset = []
@@ -139,15 +178,6 @@ class GraphAgent:
         # Gripper always open
         return np.asarray([x, y, z, qx, qy, qz, qw, 1.0])
 
-
-def make_agent(config):
-    """Constructs agent based on config."""
-    # if config.model_name == "mlp":
-    #     agent = MLPAgent(config, INPUT_DIM, OUTPUT_DIM)
-    # else:
-    #     raise NotImplementedError
-    agent = GraphAgent(config, 10, 7)
-    return agent
 
 def test_policy(config):
     """Evaluates trained policy."""

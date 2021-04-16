@@ -96,3 +96,16 @@ class GCNModel(nn.Module):
         out = self.final_layer(out)
 
         return out
+
+# class GCNTransporterModel(nn.Module):
+#     """Graph Convolutional Nework with Transporter Keypoint + Feature embedding"""
+
+#     def __init__(self, gcn_model, transporter_model):
+#         super(GCNTransporterModel, self).__init__()
+        
+#         self.gcn_model = gcn_model
+#         self.transporter_model = transporter_model
+
+#     def forward(self, x, edge_index, batch):
+#         out = x
+#         return out
