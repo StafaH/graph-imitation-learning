@@ -1,0 +1,31 @@
+action: delta_withgripper
+batch_size: 256
+checkpoint_dir: null
+dagger: false
+data_dir: data/pick_and_lift/
+episodes_per_update: 10
+eval: false
+eval_batch_size: 10
+eval_interval: 10
+graph_hidden_dims:
+- 64
+- 64
+- 64
+hidden_dims:
+- 64
+- 64
+log_dir: logs/gcn_state_seed53_Apr15_18-18-15
+max_dataset_size: 1000000
+max_episode_length: 100
+mlp_hidden_dims:
+- 64
+- 64
+- 64
+model_name: graph
+network: gcn_state
+num_epochs: 2000
+render: false
+resume: ''
+seed: 53
+sub_epochs: 10
+tag: exp
