@@ -4,6 +4,13 @@ import re
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
+COLORS = [
+    'blue', 'green', 'red', 'black', 'cyan', 'magenta', 'yellow', 'brown',
+    'purple', 'pink', 'orange', 'teal', 'coral', 'lightblue', 'lime',
+    'lavender', 'turquoise', 'darkgreen', 'tan', 'salmon', 'gold',
+    'lightpurple', 'darkred', 'darkblue'
+]
+
 
 def rolling_window(a, window):
     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
@@ -87,6 +94,7 @@ def plot_with_seeds(legend_dir_specs,
             if window:
                 x, y = window_func(x, y, window, np.mean)
             stats[l].append([x, y])
+            del event_acc
 
     # prepare for plot
     x_max = float("inf")
@@ -102,14 +110,24 @@ def plot_with_seeds(legend_dir_specs,
         processed_stats[name] = [x, y_mean, y_std]
 
     # actual plot
-    for name, (x, y_mean, y_std) in processed_stats:
-        plt.plot(x, y_mean, label=name)
-        plt.fill_between(x, y_mean + y_std, y_mean - y_std, alpha=0.3)
+    for i, name in enumerate(processed_stats.keys()):
+        color = COLORS[i]
+        x, y_mean, y_std = processed_stats[name]
+        plt.plot(x, y_mean, label=name, color=color)
+        plt.fill_between(x,
+                         y_mean + 1 * y_std,
+                         y_mean - 1 * y_std,
+                         alpha=0.3,
+                         color=color)
 
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    # # trianign loss
+    # plt.ylim(ymax=0.1e-5, ymin=-0.1e-6)
     plt.legend()
+
+    plt.tight_layout()
     plt.savefig(out_path)
     plt.show()
 
@@ -118,25 +136,49 @@ def plot_with_seeds(legend_dir_specs,
 
 if __name__ == "__main__":
     # hack
-    plot_from_tensorboard_logs(
-        {
-            "gnn": "logs/gnn",
-            "mlp": "logs/hid64-64-64_seed0_Mar10_15-38-14"
-        },
-        "loss_curve.jpg",
-        scalar_name="loss",
-        window=None)
+    # plot_from_tensorboard_logs(
+    #     {
+    #         "gnn": "logs/gnn",
+    #         "mlp": "logs/hid64-64-64_seed0_Mar10_15-38-14"
+    #     },
+    #     "loss_curve.jpg",
+    #     scalar_name="loss",
+    #     window=None)
+
+    # plot_with_seeds(
+    #     {
+    #         "gnn":
+    #             ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
+    #         "mlp":
+    #             ["logs/rt_mlp/seed0", "logs/rt_mlp/seed1", "logs/rt_mlp/seed2"],
+    #     },
+    #     out_path="temp.jpg",
+    #     scalar_name="loss",
+    #     title="Traing Curves",
+    #     xlabel="Epochs",
+    #     ylabel="Loss",
+    #     window=10)
 
     plot_with_seeds(
         {
-            "gnn":
-                ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
-            "mlp":
-                ["logs/rt_mlp/seed0", "logs/rt_mlp/seed1", "logs/rt_mlp/seed2"],
+            # "gnn":
+            #     ["logs/rt_gnn/seed0", "logs/rt_gnn/seed1", "logs/rt_gnn/seed2"],
+            "mlp": [
+                "logs/rt_mlp_fix_64x3_lr/seed6_Apr14_22-18-52",
+                "logs/rt_mlp_fix_64x3_lr/seed1_Apr15_15-23-38",
+                "logs/rt_mlp_fix_64x3_lr/seed9_Apr15_15-43-02",
+                "logs/rt_mlp_fix_64x3_lr/seed3_Apr15_16-39-38"
+            ],
         },
-        out_path="temp.jpg",
+        out_path="rt_mlp_loss.jpg",
         scalar_name="loss",
-        title="Traing Curves",
+        title="Training Loss",
         xlabel="Epochs",
         ylabel="Loss",
         window=10)
+    # out_path="rt_mlp_reward.jpg",
+    # scalar_name="loss_eval/total_rewards",
+    # title="Average Reward",
+    # xlabel="Epochs",
+    # ylabel="Reward",
+    # window=10)
