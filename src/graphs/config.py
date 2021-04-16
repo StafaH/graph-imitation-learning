@@ -65,28 +65,47 @@ def get_base_parser():
                         help="if to train with dagger style (data aggregation)")
 
     # evaluation stuff
-    parser.add_argument('--max_episode_length', type=int, default=100)
+    parser.add_argument('--max_episode_length', type=int, default=200)
     parser.add_argument('--eval_interval',
                         type=int,
                         default=10,
                         help="evalution interval during training")
-    parser.add_argument('--eval_batch_size', type=int, default=10)
+    parser.add_argument('--eval_batch_size', type=int, default=5)
     parser.add_argument('--checkpoint_dir',
                         type=str,
                         help='folder path to load checkpoint from')
     parser.add_argument("--render",
                         action='store_true',
                         help="if to render for test runs")
+    parser.add_argument("--eval_when_train",
+                        action='store_true',
+                        help="if to evaluate during training")
+    parser.add_argument('--eval_when_train_freq',
+                        type=int,
+                        default=25,
+                        help="rollout interval during training")
 
     # model stuff
     parser.add_argument('--model_name', type=str, default='mlp')
     parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--activation', type=str, default="tanh")
     parser.add_argument("--hidden_dims",
                         nargs='+',
                         type=int,
                         default=[64, 64],
                         help="mlp hidden layer dimensions")
+    parser.add_argument("--use_dropout",
+                        action='store_true',
+                        help="if to use dropout before output layer")
+    parser.add_argument('--num_stack',
+                        type=int,
+                        default=1,
+                        help="how many (previous) features to use for input")
+    parser.add_argument("--add_distractors",
+                        action='store_true',
+                        help="if to include distractors in features")
 
     # data stuff
     parser.add_argument('--episodes_per_update', type=int, default=10)
