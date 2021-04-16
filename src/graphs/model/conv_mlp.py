@@ -68,7 +68,6 @@ class ConvMLP(nn.Module):
         super().__init__()
 
         in_channels = input_dim[0]
-        # self.base = FeatureExtractor(in_channels)
         self.base = nn.Sequential(
             # Input 3 x 128 x 128                                                 Outputs
             ConvBlock(in_channels, 32, kernel_size=(7, 7), stride=1,
@@ -82,6 +81,44 @@ class ConvMLP(nn.Module):
         self.flatten = nn.Flatten()
 
         mlp_input_dim = 64
+        self.head = MLP(mlp_input_dim, output_dim, hidden_dims=hidden_dims)
+
+    def forward(self, x):
+        out = self.base(x)
+        out = self.pooling(out)
+        out = self.flatten(out)
+        out = self.head(out)
+        return out
+
+
+class TransporterMLP(nn.Module):
+
+    def __init__(self,
+                 input_dim,
+                 output_dim,
+                 hidden_dims=[],
+                 base_checkpoint_path="src/graphs/model/transporter_model.pth",
+                 **kwargs):
+        super().__init__()
+
+        self.base = FeatureExtractor()
+        # load pre-trained transporter
+        params = torch.load(base_checkpoint_path)["model_state_dict"]
+        for k in list(params.keys()):
+            if "feature_extractor" in k:
+                new_k = k.replace("feature_extractor.", "")
+                params[new_k] = params[k]
+            params.pop(k)
+        self.base.load_state_dict(params)
+        # freeze transporter
+        for p in self.base.parameters():
+            p.requires_grad = False
+
+        # self.pooling = nn.AdaptiveAvgPool2d(1)
+        self.pooling = nn.AdaptiveMaxPool2d(1)
+        self.flatten = nn.Flatten()
+
+        mlp_input_dim = 128
         self.head = MLP(mlp_input_dim, output_dim, hidden_dims=hidden_dims)
 
     def forward(self, x):

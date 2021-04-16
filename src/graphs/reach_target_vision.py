@@ -45,7 +45,7 @@ from pyrep.objects.vision_sensor import VisionSensor
 from config import get_base_parser
 from data import split_train_test
 from model.mlp import MLP
-from model.conv_mlp import ConvMLP
+from model.conv_mlp import ConvMLP, TransporterMLP
 from model.GCN import GCNModel
 from utils import set_manual_seed, save_checkpoint, save_config, save_command
 from utils import pose_quat_to_rpy, pose_rpy_to_quat, save_video
@@ -264,7 +264,7 @@ class ReachTargetVisionDataset(torch.utils.data.Dataset):
 # -----------------------------------------------------------------------------------
 
 
-class CNNAgent:
+class ConvMLPAgent:
 
     def __init__(self, config, input_dim, output_dim):
         self.input_dim = input_dim
@@ -294,7 +294,7 @@ class CNNAgent:
         return action
 
     def act(self, features):
-        if len(features.shape) == 1:
+        if len(features.shape) == 3:
             # for testing
             features = features.unsqueeze(0)
         action = self.model(features)
@@ -309,13 +309,29 @@ class CNNAgent:
         return np.asarray([x, y, z, qx, qy, qz, qw])
 
 
+class TransporterMLPAgent(ConvMLPAgent):
+
+    def __init__(self, config, input_dim, output_dim):
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.model = TransporterMLP(input_dim,
+                                    output_dim,
+                                    hidden_dims=config.hidden_dims)
+
+
 def make_agent(config):
     """Constructs agent based on config."""
     if config.model_name == "conv_mlp":
         input_dim = INPUT_DIM
         # input_dim *= getattr(config, "num_stack", 1)
         output_dim = OUTPUT_DIM
-        agent = CNNAgent(config, input_dim, output_dim)
+        agent = ConvMLPAgent(config, input_dim, output_dim)
+    elif config.model_name == "trans_mlp":
+        input_dim = INPUT_DIM
+        # input_dim *= getattr(config, "num_stack", 1)
+        output_dim = OUTPUT_DIM
+        agent = TransporterMLPAgent(config, input_dim, output_dim)
     else:
         raise NotImplementedError
     return agent
@@ -397,7 +413,8 @@ def train(config):
     dataset_train = ReachTargetVisionDataset(data_list=dataset_train)
     loader = torch.utils.data.DataLoader(dataset_train,
                                          batch_size=config.batch_size,
-                                         shuffle=True)
+                                         shuffle=True,
+                                         num_workers=4)
     dataset_test = ReachTargetVisionDataset(data_list=dataset_test)
     loader_test = torch.utils.data.DataLoader(dataset_test,
                                               batch_size=config.batch_size)
